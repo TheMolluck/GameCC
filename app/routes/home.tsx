@@ -1,5 +1,6 @@
+import { NavLink } from "react-router";
 import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
+
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,11 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
-  return <Welcome />;
+  return (
+		<nav>
+			<NavLink to="/sign-in" end>
+				<img src="/img/sits.png"></img>
+			</NavLink>
+		</nav>
+  );
 }
