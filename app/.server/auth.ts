@@ -1,10 +1,8 @@
 import { Authenticator } from "remix-auth";
 import { SteamStrategy as BaseSteamStrategy } from "@ianlucas/remix-auth-steam";
 import { SteamAPI } from "./steamapi";
-
-type User = {
-	steamid: string;
-};
+import { storeSteamUserandGames } from "./db/db";
+import type { SteamGames, User } from "./types";
 
 class SteamStrategy extends BaseSteamStrategy<string> {
 	constructor() {
@@ -12,8 +10,12 @@ class SteamStrategy extends BaseSteamStrategy<string> {
 			async () => ({
 				returnURL: process.env.STEAM_RETURN_URL as string,
 			}),
-			async ({ userID }) =>
-                await upsertUser((await new SteamAPI(process.env.STEAM_API_KEY as string).getUserSummary(userID)) as User)
+			async ({ userID }) => {
+				const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+				const user = await api.getUserSummary(userID) as User;
+				const games = await new SteamAPI(process.env.STEAM_API_KEY as string).getUserOwnedGames(userID) as SteamGames;
+				return await upsertUser(user, games);
+			}
 		);
 	}
 }
@@ -21,7 +23,7 @@ class SteamStrategy extends BaseSteamStrategy<string> {
 export const authenticator = new Authenticator<string>();
 authenticator.use(new SteamStrategy(), "steam");
 
-async function upsertUser(user: User): Promise<string> {
-	// TODO: Upsert the user into the database and return the user ID
+async function upsertUser(user: User, games: SteamGames): Promise<string> {
+	storeSteamUserandGames(user, games);
 	return user.steamid;
 }
