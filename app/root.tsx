@@ -5,10 +5,14 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import Navbar from "./routes/navbar";
+import { getUserFromSession } from "./.server/auth";
+import { userContext } from "~/context";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -23,7 +27,16 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const user = (await getUserFromSession(request).catch(() => null)) ?? null;
+  // make the user available to downstream loaders via context
+  context.set(userContext, user);
+  return { user };
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { user } = useLoaderData() as { user: string | null };
+
   return (
     <html lang="en">
       <head>
@@ -33,6 +46,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
+        <Navbar user={user} />
         {children}
         <ScrollRestoration />
         <Scripts />
