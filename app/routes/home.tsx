@@ -38,10 +38,10 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
     return (
-        <div>
-            <h1>Welcome to GameCC!</h1>
-            <p>Your one-stop destination for all things gaming.</p>
-            <NavLink to={`/library`} className="text-blue-500 hover:underline">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950">
+            <h1 className="text-5xl font-extrabold mb-6 text-emerald-300">Welcome to GameCC!</h1>
+            <p className="mb-8 text-emerald-200 text-lg">Your one-stop destination for all things gaming.</p>
+            <NavLink to={`/library`} className="px-6 py-3 bg-emerald-600 text-slate-100 rounded-lg font-semibold shadow hover:bg-emerald-700 transition">
                 View Your Library
             </NavLink>
         </div>

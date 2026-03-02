@@ -13,6 +13,8 @@ import "./app.css";
 import Navbar from "./routes/navbar";
 import { getUserFromSession } from "./.server/auth";
 import { userContext } from "~/context";
+import { useNavigation } from "react-router";
+import { Spinner } from "./content/spinner";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -56,7 +58,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  const navigation = useNavigation();
+  return (
+    <>
+      {navigation.state === "loading" || navigation.state === "submitting" ? (
+        <Spinner />
+      ) : (
+        <Outlet />
+      )}
+    </>
+  );
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

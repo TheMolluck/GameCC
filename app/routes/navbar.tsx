@@ -1,106 +1,60 @@
-import { NavLink, useNavigate } from "react-router";
-import { useState } from "react";
-
+import { NavLink } from "react-router";
+import React, { useState, useRef, useEffect } from "react";
 
 interface NavbarProps {
-	user: string | null;
+    user: string | null;
 }
 
 export default function Navbar({ user }: NavbarProps) {
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const navigate = useNavigate();
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const toggleDropdown = () => {
-        setIsDropdownOpen(!isDropdownOpen);
-    };
-
-    const handleTitleClick = () => {
-        if (user) {
-            toggleDropdown();
-        } else {
-            navigate("/");
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setDropdownOpen(false);
+            }
         }
-    };
+        if (dropdownOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        } else {
+            document.removeEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [dropdownOpen]);
 
     return (
-		<nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div className="flex justify-between items-center h-16">
-					<div className="relative">
-						<button
-                            onClick={handleTitleClick}
-                            className="text-gray-900 dark:text-white font-semibold text-lg hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                            GameCC
-                        </button>
-                        {isDropdownOpen && user && (
-							<div className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-								<NavLink
-									to="/account"
-									className={({ isActive }) =>
-										`block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 ${
-											isActive
-												? "bg-blue-50 dark:bg-blue-900"
-												: ""
-										}`
-									}
-									onClick={() => setIsDropdownOpen(false)}>
-									Account
-								</NavLink>
-								<NavLink
-									to="/library"
-									className={({ isActive }) =>
-										`block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 ${
-											isActive
-												? "bg-blue-50 dark:bg-blue-900"
-												: ""
-										}`
-									}
-									onClick={() => setIsDropdownOpen(false)}>
-									Library
-								</NavLink>
-								<NavLink
-									to="/compare-games"
-									className={({ isActive }) =>
-										`block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 ${
-											isActive
-												? "bg-blue-50 dark:bg-blue-900"
-												: ""
-										}`
-									}
-									onClick={() => setIsDropdownOpen(false)}>
-									Compare games with friends
-								</NavLink>
-								<NavLink
-									to="/link-account"
-									className={({ isActive }) =>
-										`block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 ${
-											isActive
-												? "bg-blue-50 dark:bg-blue-900"
-												: ""
-										}`
-									}
-									onClick={() => setIsDropdownOpen(false)}>
-									Link a game account
-								</NavLink>
-								<div className="border-t border-gray-200 dark:border-gray-700" />
-								<NavLink
-									to="/auth/sign-out"
-									className={({ isActive }) =>
-										`block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 ${
-											isActive
-												? "bg-blue-50 dark:bg-blue-900"
-												: ""
-										}`
-									}
-									onClick={() => setIsDropdownOpen(false)}>
-                                    Log Out
-                                    
-								</NavLink>
-							</div>
-						)}
-					</div>
-				</div>
-			</div>
-		</nav>
-	);
+        <nav className="bg-slate-950 border-b border-emerald-700/40">
+            <div className="max-w-7xl mx-auto px-4 py-2 flex justify-between items-center">
+                <div className="flex items-center gap-6">
+                    <NavLink to="/library" className="text-emerald-300 font-bold text-lg">GameCC</NavLink>
+                </div>
+                <div className="flex items-center gap-4">
+                        {user ? (
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-100 rounded-lg shadow hover:bg-emerald-700 transition-colors duration-200 focus:outline-none"
+                                    onClick={() => setDropdownOpen((open) => !open)}
+                                    aria-haspopup="true"
+                                    aria-expanded={dropdownOpen}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-ellipsis-vertical-icon lucide-ellipsis-vertical"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                                {dropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-emerald-700/40 rounded-lg shadow-lg z-50 animate-fade-in">
+                                        <NavLink to="/library" className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white rounded-t-lg transition-colors" onClick={() => setDropdownOpen(false)}>Library</NavLink>
+                                        <NavLink to="/compare" className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors" onClick={() => setDropdownOpen(false)}>Compare</NavLink>
+                                        <NavLink to="/account" className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors" onClick={() => setDropdownOpen(false)}>Account Settings</NavLink>
+                                        <NavLink to="/link-account" className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors" onClick={() => setDropdownOpen(false)}>Link New Game Account</NavLink>
+                                        <NavLink to="/auth/sign-out" className="block px-4 py-2 text-red-400 hover:bg-red-600 hover:text-white rounded-b-lg transition-colors" onClick={() => setDropdownOpen(false)}>Log Out</NavLink>
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
+                </div>
+            </div>
+        </nav>
+    );
 }
