@@ -324,7 +324,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                             <button
                                 onClick={() => setSelectedScreenshot(selectedScreenshot + 1)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition">
-                                →
                             </button>
                         )}
                     </div>

@@ -42,9 +42,9 @@ export class SteamAPI {
 			});
 	}
 
-	async getGameStoreDetails(steamId: string) {
+	async getGameStoreDetails(appId: string) {
 		return fetch(
-			`https://store.steampowered.com/api/appdetails?appids=${steamId}`,
+			`https://store.steampowered.com/api/appdetails?appids=${appId}`,
 		)
             .then((response) => response.json())
 			.then((data) => {

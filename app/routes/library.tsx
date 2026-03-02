@@ -3,6 +3,7 @@ import { redirect, NavLink } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/library";
 import { getGamesByUserId } from '~/.server/db/db';
+import { SimpleCache } from '~/.server/cache';
 import type { SteamGame, SteamGameDetails } from '~/.server/types';
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
@@ -34,6 +35,11 @@ const authMiddleware: MiddlewareFunction = async (
 
 export const middleware: MiddlewareFunction[] = [authMiddleware];
 	
+
+// Caches for details and grids (5 min TTL)
+const detailsCache = new SimpleCache<SteamGameDetails>(5 * 60 * 1000);
+const gridsCache = new SimpleCache<any[]>(5 * 60 * 1000);
+
 export async function loader({ context }: Route.LoaderArgs) {
 	const userId = context.get(userContext);
 	let games: SteamGame[] = [];
@@ -41,38 +47,99 @@ export async function loader({ context }: Route.LoaderArgs) {
 	const gridsByAppid: Record<number, any[]> = {};
 
 	if (userId) {
-		games = (await getGamesByUserId(userId)) as SteamGame[];
-
-		// Parallelize game details fetch
+		let userGames: SteamGame[] = [];
 		try {
-			const api = new SteamAPI(process.env.STEAM_API_KEY as string);
-			const detailsPromises = games.map(async (game) => {
-				try {
-					const details = await api.getGameStoreDetails(game.appid.toString());
-					gameDetails[game.appid] = details[game.appid.toString()].data as SteamGameDetails;
-				} catch (err) {
-					
+			const [dbGames] = await Promise.all([
+				getGamesByUserId(userId)
+			]);
+			userGames = dbGames as SteamGame[];
+		} catch (err) {
+			console.error(`Failed to fetch games from DB for user ${userId}:`, err);
+			// if DB fetch fails, try fetching from Steam API as fallback
+			try {
+				const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+				const apiGames = await api.getUserOwnedGames(userId);
+				userGames = apiGames as SteamGame[];
+			} catch (apiErr) {
+				console.error(`Failed to fetch games from Steam API for user ${userId}:`, apiErr);
+				userGames = [];
+			}
+		}
+		games = userGames;
+
+		// Fetch details with cache
+		const detailsResults = await Promise.all(
+			games.map(async (game) => {
+				const cacheKey = String(game.appid);
+				let details = detailsCache.get(cacheKey);
+				if (!details) {
+					try {
+						const dbDetails = await import("~/.server/db/db").then(m => m.getSteamGameDetails(game.appid));
+						if (dbDetails) {
+							details = dbDetails;
+							detailsCache.set(cacheKey, details);
+						}
+					} catch (err) {
+						console.error(`Failed to fetch details for appid ${game.appid}:`, err);
+						// If DB fetch fails, try fetching from API as fallback
+						try {
+							const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+							const detailsResponse = await api.getGameStoreDetails(game.appid.toString());
+							const detailsData = detailsResponse[game.appid];
+							if (detailsData && detailsData.success && detailsData.data) {
+								details = detailsData.data as SteamGameDetails;
+								detailsCache.set(cacheKey, details);
+							}
+						} catch (apiErr) {
+							console.error(`Failed to fetch details from API for appid ${game.appid}:`, apiErr);
+						}
+					}
 				}
-			});
-			await Promise.all(detailsPromises);
-		} catch (e) {
-			console.error("Failed to fetch game details:", e);
+				if (details) {
+					return { appid: game.appid, details };
+				}
+				return null;
+			})
+		);
+		for (const result of detailsResults) {
+			if (result && result.appid && result.details) {
+				gameDetails[result.appid] = result.details;
+			}
 		}
 
-		// Parallelize grid fetch
-		try {
-			const { default: SGDB } = await import("steamgriddb");
-			const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
-			const gridPromises = games.map(async (game) => {
-				try {
-					gridsByAppid[game.appid] = await client.getGridsBySteamAppId(game.appid);
-				} catch (err) {
-					gridsByAppid[game.appid] = [];
+		// Fetch grids with cache
+		const gridsResults = await Promise.all(
+			games.map(async (game) => {
+				const cacheKey = String(game.appid);
+				let grids = gridsCache.get(cacheKey);
+				if (!grids) {
+					try {
+						grids = await import("~/.server/db/db").then(m => m.getSteamGrids(game.appid));
+						if (grids) {
+							gridsCache.set(cacheKey, grids);
+						}
+					} catch (err) {
+						console.error(`Failed to fetch grids for appid ${game.appid}:`, err);
+						// If DB fetch fails, try fetching from SGDB API as fallback
+						try {
+							const { default: SGDB } = await import("steamgriddb");
+							const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
+							const apiGrids = await client.getGridsBySteamAppId(game.appid);
+							grids = apiGrids || [];
+							gridsCache.set(cacheKey, grids);
+						} catch (apiErr) {
+							console.error(`Failed to fetch grids from SGDB API for appid ${game.appid}:`, apiErr);
+							grids = [];
+						}
+					}
 				}
-			});
-			await Promise.all(gridPromises);
-		} catch (e) {
-			console.error("Failed to load SGDB client:", e);
+				return { appid: game.appid, grids: grids || [] };
+			})
+		);
+		for (const result of gridsResults) {
+			if (result && result.appid) {
+				gridsByAppid[result.appid] = result.grids;
+			}
 		}
 	}
 
@@ -138,7 +205,11 @@ function GameCard({ game, grids }: { game: SteamGame; grids: any[] }) {
 }
 
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
+import { useIntersectionObserver } from "../useIntersectionObserver";
+import { Spinner } from "../content/spinner";
+
+const PAGE_SIZE = 24;
 
 export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 	const { games, gameDetails, gridsByAppid } = loaderData;
@@ -160,14 +231,20 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 		return Array.from(catSet);
 	}, [gameDetails]);
 
-	// State for filter and sort
+
+	// State for filter, sort, and infinite scroll
 	const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
 	const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 	const [showGenreDropdown, setShowGenreDropdown] = useState(false);
 	const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+	const [sortType, setSortType] = useState<SortType>("name-asc");
+	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+	const [isLoading, setIsLoading] = useState(false);
 
 	const genreDropdownRef = useRef<HTMLDivElement>(null);
 	const categoryDropdownRef = useRef<HTMLDivElement>(null);
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
 	React.useEffect(() => {
 		function handleClick(e: MouseEvent) {
 			if (showGenreDropdown && genreDropdownRef.current && !genreDropdownRef.current.contains(e.target as Node)) {
@@ -180,7 +257,6 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 		document.addEventListener("mousedown", handleClick);
 		return () => document.removeEventListener("mousedown", handleClick);
 	}, [showGenreDropdown, showCategoryDropdown]);
-	const [sortType, setSortType] = useState<SortType>("name-asc");
 
 	// Filter and sort games
 	const filteredGames = useMemo(() => {
@@ -216,6 +292,30 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 			}
 		});
 	}, [games, gameDetails, selectedGenres, selectedCategories, sortType]);
+
+	// Reset visibleCount when filters or sort change
+	React.useEffect(() => {
+		setVisibleCount(PAGE_SIZE);
+	}, [selectedGenres, selectedCategories, sortType]);
+
+	// Infinite scroll: load more when sentinel is visible
+	const handleIntersect = useCallback(() => {
+		if (isLoading) return;
+		if (visibleCount < filteredGames.length) {
+			setIsLoading(true);
+			setTimeout(() => {
+				setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filteredGames.length));
+				setIsLoading(false);
+			}, 400); // Simulate async load
+		}
+	}, [isLoading, visibleCount, filteredGames.length]);
+
+	useIntersectionObserver({
+		target: sentinelRef,
+		onIntersect: handleIntersect,
+		enabled: visibleCount < filteredGames.length && !isLoading,
+		threshold: 1.0,
+	});
 
 	return (
 		<div className="max-w-7xl mx-auto px-4 py-8">
@@ -260,13 +360,13 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 															g,
 														)
 															? selectedGenres.filter(
-																	(x) =>
-																		x !== g,
-																)
+																(x) =>
+																	x !== g,
+															)
 															: [
-																	...selectedGenres,
-																	g,
-																],
+																...selectedGenres,
+																g,
+															],
 													)
 												}
 											/>
@@ -315,13 +415,13 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 															c,
 														)
 															? selectedCategories.filter(
-																	(x) =>
-																		x !== c,
-																)
+																(x) =>
+																	x !== c,
+															)
 															: [
-																	...selectedCategories,
-																	c,
-																],
+																...selectedCategories,
+																c,
+															],
 													)
 												}
 											/>
@@ -347,12 +447,8 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 						}>
 						<option value="name-asc">Name (A-Z)</option>
 						<option value="name-desc">Name (Z-A)</option>
-						<option value="playtime-desc">
-							Playtime (High-Low)
-						</option>
-						<option value="playtime-asc">
-							Playtime (Low-High)
-						</option>
+						<option value="playtime-desc">Playtime (High-Low)</option>
+						<option value="playtime-asc">Playtime (Low-High)</option>
 						<option value="last-played">Last Played</option>
 					</select>
 				</div>
@@ -363,7 +459,7 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 						No games found.
 					</div>
 				) : (
-					filteredGames.map((game: any) => (
+					filteredGames.slice(0, visibleCount).map((game: any) => (
 						<GameCard
 							key={game.appid}
 							game={game}
@@ -372,7 +468,8 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 					))
 				)}
 			</div>
+			<div ref={sentinelRef} />
+			{isLoading && <Spinner />}
 		</div>
 	);
 }
-

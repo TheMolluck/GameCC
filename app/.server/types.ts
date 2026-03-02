@@ -1,3 +1,4 @@
+
 export type User = {
     steamid: string;
     avatar: string;
@@ -50,6 +51,25 @@ export type SteamGameDetails = {
         date: string;
     };
     background: string;
+};
+
+export type SteamGrid = {
+	id: number;
+	url: string;
+	width: number;
+	height: number;
+	style: string;
+	mime: string;
+	language: string;
+	nsfw: boolean;
+	lock: boolean;
+	upvotes: number;
+	downvotes: number;
+	author: {
+		name: string;
+		steam64: string;
+		avatar: string;
+	};
 };
 
 export type SteamGames = SteamGame[];
