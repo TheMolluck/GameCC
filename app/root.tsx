@@ -5,16 +5,15 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLoaderData,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
-import Navbar from "./routes/navbar";
 import { getUserFromSession } from "./.server/auth";
 import { userContext } from "~/context";
 import { useNavigation } from "react-router";
 import { Spinner } from "./content/spinner";
+import Navbar from "./routes/navbar";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -37,8 +36,6 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { user } = useLoaderData() as { user: string | null };
-
   return (
     <html lang="en">
       <head>
@@ -48,7 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <Navbar user={user} />
+        {/* <Navbar user={user} /> */}
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -57,14 +54,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+export default function App({ loaderData }: Route.ComponentProps) {
+  const { user } = loaderData;
   const navigation = useNavigation();
   return (
     <>
       {navigation.state === "loading" || navigation.state === "submitting" ? (
         <Spinner />
       ) : (
-        <Outlet />
+        <>
+          <Navbar user={user} />
+          <Outlet />
+        </>
       )}
     </>
   );

@@ -45,7 +45,7 @@ export async function loader({ context }: Route.LoaderArgs) {
 
     // Parallelize game details fetch
     try {
-      const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+      const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
       const detailsPromises = games.map(async (game) => {
         try {
           const detailsRes = await api.getGameStoreDetails(
@@ -66,7 +66,7 @@ export async function loader({ context }: Route.LoaderArgs) {
     // Parallelize grid fetch
     try {
       const { default: SGDB } = await import("steamgriddb");
-      const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
+      const client = new SGDB(import.meta.env.VITE_STEAMGRID_API_KEY as string);
       const gridPromises = games.map(async (game) => {
         try {
           gridsByAppid[game.appid] = await client.getGridsBySteamAppId(

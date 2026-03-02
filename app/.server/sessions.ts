@@ -15,8 +15,8 @@ const { getSession, commitSession, destroySession } =
       httpOnly: true,
       path: "/",
       sameSite: "lax",
-      secrets: [process.env.SESSION_SECRET as string],
-      secure: process.env.NODE_ENV === "production",
+      secrets: [import.meta.env.VITE_SESSION_SECRET as string],
+      secure: import.meta.env.VITE_NODE_ENV === "production",
     },
   });
 

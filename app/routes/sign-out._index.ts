@@ -1,6 +1,6 @@
 import { redirect } from "react-router";
-import { destroySession, getSession } from "../sessions";
-import type { Route } from "../../+types/root";
+import { destroySession, getSession } from "../.server/sessions";
+import type { Route } from "../+types/root";
 import { userContext } from "~/context";
 
 export async function loader({ request, context }: Route.LoaderArgs) {

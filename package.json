@@ -15,7 +15,6 @@
     "@ianlucas/remix-auth-steam": "^7.0.0",
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
-    "dotenv": "^17.3.1",
     "isbot": "^5.1.31",
     "mongodb": "^7.1.0",
     "passport-steam": "^1.0.18",
