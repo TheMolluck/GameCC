@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { redirect, NavLink } from "react-router";
 import type { MiddlewareFunction } from "react-router";
@@ -103,7 +104,7 @@ export async function loader({ context }: Route.LoaderArgs) {
 		);
 		for (const result of detailsResults) {
 			if (result && result.appid && result.details) {
-				gameDetails[result.appid] = result.details;
+				(gameDetails as any)[result.appid] = result.details;
 			}
 		}
 
@@ -214,6 +215,8 @@ function GameCard({ game, grids }: { game: SteamGame; grids: SGDBImage[] }) {
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useIntersectionObserver } from "../useIntersectionObserver";
 import { Spinner } from "../content/spinner";
+import type { SteamAppDetailsData } from "~/.server/schemas";
+import type { SGDBImage } from "steamgriddb";
 
 const PAGE_SIZE = 24;
 
