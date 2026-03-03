@@ -9,29 +9,29 @@ import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
 import { SteamAPI } from "~/.server/steamapi";
 
-export function meta({ }: Route.MetaArgs) {
-	return [
-		{ title: "GameCC - Library" },
-		{ name: "description", content: "Welcome to GameCC!" },
-	];
+export function meta() {
+  return [
+    { title: "GameCC - Library" },
+    { name: "description", content: "Welcome to GameCC!" },
+  ];
 }
-	
+
 const authMiddleware: MiddlewareFunction = async (
-		{ request, context },
-		next,
-	) => {
-		let user = context.get(userContext) as string | null;
-		if (!user) {
-			user = (await getUserFromSession(request)) ?? null;
-		}
-		if (!user) {
-			throw redirect("/");
-		}
+  { request, context },
+  next,
+) => {
+  let user = context.get(userContext) as string | null;
+  if (!user) {
+    user = (await getUserFromSession(request)) ?? null;
+  }
+  if (!user) {
+    throw redirect("/");
+  }
 
-		context.set(userContext, user);
+  context.set(userContext, user);
 
-		return next();
-	};
+  return next();
+};
 
 export const middleware: MiddlewareFunction[] = [authMiddleware];
 	
@@ -41,10 +41,10 @@ const detailsCache = new SimpleCache<SteamGameDetails>(5 * 60 * 1000);
 const gridsCache = new SimpleCache<any[]>(5 * 60 * 1000);
 
 export async function loader({ context }: Route.LoaderArgs) {
-	const userId = context.get(userContext);
-	let games: SteamGame[] = [];
-	let gameDetails: Record<number, SteamGameDetails> = {};
-	const gridsByAppid: Record<number, any[]> = {};
+  const userId = context.get(userContext);
+  let games: SteamGame[] = [];
+  const gameDetails: Record<number, SteamAppDetailsData> = {};
+  const gridsByAppid: Record<number, SGDBImage[]> = {};
 
 	if (userId) {
 		let userGames: SteamGame[] = [];
@@ -143,67 +143,73 @@ export async function loader({ context }: Route.LoaderArgs) {
 		}
 	}
 
-	return { games, gameDetails, gridsByAppid, user: userId };
-};
-
-type SortType = "name-asc" | "name-desc" | "playtime-desc" | "playtime-asc" | "last-played";
-
-function GameCard({ game, grids }: { game: SteamGame; grids: any[] }) {
-	const formatTime = (hours: number): string => {
-		if (hours < 1) {
-			return `${Math.round(hours * 60)}m`;
-		}
-		if (hours < 24) {
-			return `${Math.round(hours)}h`;
-		}
-		const days = Math.floor(hours / 24);
-		const remainingHours = Math.round(hours % 24);
-		return `${days}d ${remainingHours}h`;
-	};
-
-	const lastPlayedDate = game.rtime_last_played
-		? new Date(game.rtime_last_played * 1000).toLocaleDateString(undefined, {
-			month: "short",
-			day: "numeric",
-		})
-		: "Never";
-
-	return (
-		<NavLink to={`/game/${game.appid}`} className="block group">
-			<div className="relative h-80 rounded-xl overflow-hidden bg-linear-to-b from-slate-800 to-slate-900 border border-emerald-700/40 transition-all duration-300 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-400/20 cursor-pointer">
-			
-				<img
-					src={grids.length > 0 ? grids[0].url.toString() : "/placeholder.png"}
-					alt={game.name}
-					className="w-fit h-full group-hover:scale-110 transition-transform duration-300"
-					style={{ aspectRatio: '16/9', display: 'block' }}
-				/>
-
-				<div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-				<div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-					<h3 className="text-sm font-bold text-white mb-3 line-clamp-2">{game.name}</h3>
-					<div className="space-y-2 text-xs text-gray-200">
-						<div className="flex justify-between">
-							<span>Playtime</span>
-							<span className="font-semibold">{formatTime(game.playtime_forever / 60)}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Last Played</span>
-							<span className="font-semibold">{lastPlayedDate}</span>
-						</div>
-					</div>
-
-				</div>
-				
-				<div className="absolute top-3 right-3 bg-emerald-600/90 px-3 py-1 rounded-full text-xs font-semibold text-white">
-					{formatTime(game.playtime_forever / 60)}
-				</div>
-			</div>
-		</NavLink>
-	);
+  return { games, gameDetails, gridsByAppid, user: userId };
 }
 
+type SortType =
+  | "name-asc"
+  | "name-desc"
+  | "playtime-desc"
+  | "playtime-asc"
+  | "last-played";
+
+function GameCard({ game, grids }: { game: SteamGame; grids: SGDBImage[] }) {
+  const formatTime = (hours: number): string => {
+    if (hours < 1) {
+      return `${Math.round(hours * 60)}m`;
+    }
+    if (hours < 24) {
+      return `${Math.round(hours)}h`;
+    }
+    const days = Math.floor(hours / 24);
+    const remainingHours = Math.round(hours % 24);
+    return `${days}d ${remainingHours}h`;
+  };
+
+  const lastPlayedDate = game.rtime_last_played
+    ? new Date(game.rtime_last_played * 1000).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })
+    : "Never";
+
+  return (
+    <NavLink to={`/game/${game.appid}`} className="block group">
+      <div className="relative h-80 rounded-xl overflow-hidden bg-linear-to-b from-slate-800 to-slate-900 border border-emerald-700/40 transition-all duration-300 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-400/20 cursor-pointer">
+        <img
+          src={grids.length > 0 ? String(grids[0].url) : "/placeholder.png"}
+          alt={game.name}
+          className="w-fit h-full group-hover:scale-110 transition-transform duration-300"
+          style={{ aspectRatio: "16/9", display: "block" }}
+        />
+
+        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        <div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <h3 className="text-sm font-bold text-white mb-3 line-clamp-2">
+            {game.name}
+          </h3>
+          <div className="space-y-2 text-xs text-gray-200">
+            <div className="flex justify-between">
+              <span>Playtime</span>
+              <span className="font-semibold">
+                {formatTime(game.playtime_forever / 60)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last Played</span>
+              <span className="font-semibold">{lastPlayedDate}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute top-3 right-3 bg-emerald-600/90 px-3 py-1 rounded-full text-xs font-semibold text-white">
+          {formatTime(game.playtime_forever / 60)}
+        </div>
+      </div>
+    </NavLink>
+  );
+}
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useIntersectionObserver } from "../useIntersectionObserver";
@@ -212,24 +218,32 @@ import { Spinner } from "../content/spinner";
 const PAGE_SIZE = 24;
 
 export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
-	const { games, gameDetails, gridsByAppid } = loaderData;
-	
-	// Collect all genres and categories from gameDetails
-	const allGenres = useMemo(() => {
-		const genreSet = new Set<string>();
-		Object.values(gameDetails).forEach((details: any) => {
-			details?.genres?.forEach((g: any) => genreSet.add(g.description));
-		});
-		return Array.from(genreSet);
-	}, [gameDetails]);
+  const { games, gameDetails, gridsByAppid } = loaderData;
 
-	const allCategories = useMemo(() => {
-		const catSet = new Set<string>();
-		Object.values(gameDetails).forEach((details: any) => {
-			details?.categories?.forEach((c: any) => catSet.add(c.description));
-		});
-		return Array.from(catSet);
-	}, [gameDetails]);
+  // Collect all genres and categories from gameDetails
+  const allGenres = useMemo(() => {
+    const genreSet = new Set<string>();
+    Object.values(gameDetails).forEach(
+      (details: SteamAppDetailsData | undefined) => {
+        details?.genres?.forEach((g: { description: string }) =>
+          genreSet.add(g.description),
+        );
+      },
+    );
+    return Array.from(genreSet);
+  }, [gameDetails]);
+
+  const allCategories = useMemo(() => {
+    const catSet = new Set<string>();
+    Object.values(gameDetails).forEach(
+      (details: SteamAppDetailsData | undefined) => {
+        details?.categories?.forEach((c: { description: string }) =>
+          catSet.add(c.description),
+        );
+      },
+    );
+    return Array.from(catSet);
+  }, [gameDetails]);
 
 
 	// State for filter, sort, and infinite scroll

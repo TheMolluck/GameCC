@@ -1,28 +1,28 @@
-
+import { SteamAppDetailsResponseSchema } from "./schemas";
 
 export class SteamAPI {
-	private apiKey: string;
+  private apiKey: string;
 
-	constructor(key: string) {
-		this.apiKey = key;
-	}
+  constructor(key: string) {
+    this.apiKey = key;
+  }
 
-	async getUserSummary(steamId: string) {
-		return fetch(
-			"https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=" +
-				this.apiKey +
-				"&steamids=" +
-				steamId,
-		)
-			.then((response) => response.json())
-			.then((data) => {
-				if (data.response.players.length > 0) {
-					return data.response.players[0];
-				} else {
-					throw new Error("No player found with the given Steam ID.");
-				}
-			});
-	}
+  async getUserSummary(steamId: string) {
+    return fetch(
+      "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=" +
+        this.apiKey +
+        "&steamids=" +
+        steamId,
+    )
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.response.players.length > 0) {
+          return data.response.players[0];
+        } else {
+          throw new Error("No player found with the given Steam ID.");
+        }
+      });
+  }
 
 	async getUserOwnedGames(steamId: string) {
 		return fetch(

@@ -1,18 +1,18 @@
 import { type LoaderFunctionArgs, type MetaFunction } from "react-router";
 
 export const meta: MetaFunction = () => {
-	return [
-		{ title: "Link New Game Account" },
-		{ name: "description", content: "Link a new game account to your profile" },
-	];
+  return [
+    { title: "Link New Game Account" },
+    { name: "description", content: "Link a new game account to your profile" },
+  ];
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {}
 
 export default function LinkAccount() {
-	return (
-		<div>
-			<h1>Link New Game Account</h1>
-		</div>
-	);
+  return (
+    <div>
+      <h1>Link New Game Account</h1>
+    </div>
+  );
 }

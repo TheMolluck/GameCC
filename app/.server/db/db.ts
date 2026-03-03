@@ -3,37 +3,38 @@ import type { SteamGameDetails } from "../types";
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
 import type { SteamGames, User } from "../types";
-dotenv.config({path: "../../../.env"});
+dotenv.config({ path: "../../../.env" });
 
 const uri = process.env.ATLAS_URI;
 export const dbClient = new MongoClient(uri as string);
 
-
 let clientConnection: Promise<MongoClient> | null = null;
 
 async function ensureConnected() {
-    if (!clientConnection) {
-        clientConnection = dbClient.connect().then(() => dbClient);
-    }
-    await clientConnection;
-    return dbClient;
+  if (!clientConnection) {
+    clientConnection = dbClient.connect().then(() => dbClient);
+  }
+  await clientConnection;
+  return dbClient;
 }
 
 export async function closeDatabase() {
-    if (clientConnection) {
-        await dbClient.close();
-        clientConnection = null;
-    }
+  if (clientConnection) {
+    await dbClient.close();
+    clientConnection = null;
+  }
 }
 
 export async function connectToDatabase() {
-    try {
-        const client = await ensureConnected();
-        const collections = await client.db("gamecc").collections();
-        collections.forEach((collection) => console.log(`- ${collection.collectionName}`));
-    } catch (error) {
-        console.error("Error connecting to DB:", error);
-    }
+  try {
+    const client = await ensureConnected();
+    const collections = await client.db("gamecc").collections();
+    collections.forEach((collection) =>
+      console.log(`- ${collection.collectionName}`),
+    );
+  } catch (error) {
+    console.error("Error connecting to DB:", error);
+  }
 }
 
 export async function storeSteamUserandGames(user: User, games: SteamGames) {

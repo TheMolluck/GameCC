@@ -3,14 +3,12 @@ import type { Route } from "./+types/sign-in";
 import { getUserFromSession } from "../.server/auth";
 import { userContext } from "~/context";
 
-
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "GameCC" },
     { name: "description", content: "Sign in to your GameCC account" },
   ];
 }
-
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   // if user is already signed in, send them to their library
@@ -31,7 +29,8 @@ export default function SignIn() {
         Sign in to GameCC
       </h1>
       <p className="mb-8 text-emerald-200">
-        Authenticate with your Steam account to access your library and settings.
+        Authenticate with your Steam account to access your library and
+        settings.
       </p>
       <NavLink to="auth/sign-in" className="inline-block" end>
         <img
