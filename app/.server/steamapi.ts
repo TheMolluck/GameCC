@@ -24,31 +24,31 @@ export class SteamAPI {
       });
   }
 
-	async getUserOwnedGames(steamId: string) {
-		return fetch(
-			"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=" +
-				this.apiKey +
-				"&steamid=" +
-				steamId +
-				"&include_appinfo=true&include_played_free_games=true",
-		)
-			.then((response) => response.json())
-			.then((data) => {
-				if (data.response.game_count > 0) {
-					return data.response.games;
-				} else {
-					throw new Error("No games found for the given Steam ID.");
-				}
-			});
-	}
+  async getUserOwnedGames(steamId: string) {
+    return fetch(
+      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=" +
+        this.apiKey +
+        "&steamid=" +
+        steamId +
+        "&include_appinfo=true&include_played_free_games=true",
+    )
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.response.game_count > 0) {
+          return data.response.games;
+        } else {
+          throw new Error("No games found for the given Steam ID.");
+        }
+      });
+  }
 
-	async getGameStoreDetails(appId: string) {
-		return fetch(
-			`https://store.steampowered.com/api/appdetails?appids=${appId}`,
-		)
-            .then((response) => response.json())
-			.then((data) => {
-				return data;
-			});
-	}
+  async getGameStoreDetails(appId: string) {
+    return fetch(
+      `https://store.steampowered.com/api/appdetails?appids=${appId}`,
+    )
+      .then((response) => response.json())
+      .then((data) => {
+        return data;
+      });
+  }
 }

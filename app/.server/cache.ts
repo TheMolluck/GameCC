@@ -1,4 +1,3 @@
-
 export class SimpleCache<T> {
   private cache: Map<string, { value: T; expires: number }> = new Map();
   constructor(private ttlMs: number = 5 * 60 * 1000) {} // default 5 min

@@ -343,41 +343,49 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
         </div>
       </div>
 
-            {/* Screenshot Modal */}
-            {selectedScreenshot !== null && details?.screenshots && (
-                <div
-                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-                    onClick={() => setSelectedScreenshot(null)}>
-                    <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-                        <img
-                            src={details.screenshots[selectedScreenshot]?.path_full}
-                            alt={`Screenshot ${selectedScreenshot !== null ? selectedScreenshot + 1 : ""}`}
-                            className="w-full rounded-lg"
-                        />
-                        <button
-                            onClick={() => setSelectedScreenshot(null)}
-                            className="absolute -top-10 right-0 text-white text-2xl font-bold hover:text-emerald-300 transition">
-                            ✕
-                        </button>
-                        <div className="absolute bottom-4 left-0 right-0 text-center text-white">
-                            {selectedScreenshot !== null ? selectedScreenshot + 1 : ""} / {details.screenshots.length}
-                        </div>
-                        {selectedScreenshot !== null && selectedScreenshot > 0 && (
-                            <button
-                                onClick={() => setSelectedScreenshot(selectedScreenshot - 1)}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition">
-                                ←
-                            </button>
-                        )}
-                        {selectedScreenshot !== null && selectedScreenshot < details.screenshots.length - 1 && (
-                            <button
-                                onClick={() => setSelectedScreenshot(selectedScreenshot + 1)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition">
-                            </button>
-                        )}
-                    </div>
-                </div>
+      {/* Screenshot Modal */}
+      {selectedScreenshot !== null && details?.screenshots && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedScreenshot(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={details.screenshots[selectedScreenshot]?.path_full}
+              alt={`Screenshot ${selectedScreenshot !== null ? selectedScreenshot + 1 : ""}`}
+              className="w-full rounded-lg"
+            />
+            <button
+              onClick={() => setSelectedScreenshot(null)}
+              className="absolute -top-10 right-0 text-white text-2xl font-bold hover:text-emerald-300 transition"
+            >
+              ✕
+            </button>
+            <div className="absolute bottom-4 left-0 right-0 text-center text-white">
+              {selectedScreenshot !== null ? selectedScreenshot + 1 : ""} /{" "}
+              {details.screenshots.length}
+            </div>
+            {selectedScreenshot !== null && selectedScreenshot > 0 && (
+              <button
+                onClick={() => setSelectedScreenshot(selectedScreenshot - 1)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition"
+              >
+                ←
+              </button>
             )}
+            {selectedScreenshot !== null &&
+              selectedScreenshot < details.screenshots.length - 1 && (
+                <button
+                  onClick={() => setSelectedScreenshot(selectedScreenshot + 1)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition"
+                ></button>
+              )}
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
 }

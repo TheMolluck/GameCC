@@ -29,7 +29,7 @@ export function useIntersectionObserver({
         root,
         rootMargin,
         threshold,
-      }
+      },
     );
     observer.observe(el);
     return () => {
