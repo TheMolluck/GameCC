@@ -15,8 +15,8 @@
     "@ianlucas/remix-auth-steam": "^7.0.0",
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
-    "dotenv": "^17.3.1",
     "isbot": "^5.1.31",
+    "lefthook": "^2.1.2",
     "mongodb": "^7.1.0",
     "passport-steam": "^1.0.18",
     "react": "^19.2.4",
@@ -39,7 +39,6 @@
     "eslint": "^9.39.3",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^17.4.0",
-    "lefthook": "^2.1.2",
     "prettier": "3.8.1",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.3",
@@ -51,5 +50,6 @@
     "node": "24.14.0",
     "pnpm": "10.30.3",
     "npm": "11.11.0"
-  }
+  },
+  "packageManager": "pnpm@10.30.3"
 }

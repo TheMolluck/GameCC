@@ -8,7 +8,7 @@ export default [
   route("account", "routes/account.tsx"),
   route("link-account", "routes/link-account.tsx"),
   route("game/:appid", "routes/game.tsx"),
-  route("auth/sign-in", ".server/routes/sign-in._index.tsx"),
-  route("auth/steam/return", ".server/routes/sign-in.steam.return._index.tsx"),
-  route("auth/sign-out", ".server/routes/sign-out._index.tsx"),
+  route("auth/sign-in", "routes/sign-in._index.ts"),
+  route("auth/steam/return", "routes/sign-in.steam.return._index.ts"),
+  route("auth/sign-out", "routes/sign-out._index.ts"),
 ] satisfies RouteConfig;

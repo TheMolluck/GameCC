@@ -1,9 +1,7 @@
 import { MongoClient } from "mongodb";
-import dotenv from "dotenv";
 import type { SteamGames, User } from "../types";
-dotenv.config({ path: "../../../.env" });
 
-const uri = process.env.ATLAS_URI;
+const uri = import.meta.env.VITE_ATLAS_URI;
 export const dbClient = new MongoClient(uri as string);
 
 let clientConnection: Promise<MongoClient> | null = null;
