@@ -1,6 +1,6 @@
 import { redirect } from "react-router";
-import { authenticator } from "../auth";
-import type { Route } from "../../+types/root";
+import { authenticator } from "../.server/auth";
+import type { Route } from "../+types/root";
 import { commitSession, getSession } from "~/.server/sessions";
 
 export async function loader({ request }: Route.LoaderArgs) {

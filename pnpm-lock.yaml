@@ -16,12 +16,12 @@ importers:
       "@react-router/serve":
         specifier: 7.12.0
         version: 7.12.0(react-router@7.12.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(typescript@5.9.3)
-      dotenv:
-        specifier: ^17.3.1
-        version: 17.3.1
       isbot:
         specifier: ^5.1.31
         version: 5.1.35
+      lefthook:
+        specifier: ^2.1.2
+        version: 2.1.2
       mongodb:
         specifier: ^7.1.0
         version: 7.1.0
@@ -83,9 +83,6 @@ importers:
       globals:
         specifier: ^17.4.0
         version: 17.4.0
-      lefthook:
-        specifier: ^2.1.2
-        version: 2.1.2
       prettier:
         specifier: 3.8.1
         version: 3.8.1
@@ -1846,13 +1843,6 @@ packages:
         integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==,
       }
     engines: { node: ">=0.10.0" }
-
-  dotenv@17.3.1:
-    resolution:
-      {
-        integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==,
-      }
-    engines: { node: ">=12" }
 
   dunder-proto@1.0.1:
     resolution:
@@ -5415,8 +5405,6 @@ snapshots:
   doctrine@2.1.0:
     dependencies:
       esutils: 2.0.3
-
-  dotenv@17.3.1: {}
 
   dunder-proto@1.0.1:
     dependencies:

@@ -1,11 +1,9 @@
-import type { SteamGrid } from "../types";
 import type { SteamGameDetails } from "../types";
 import { MongoClient } from "mongodb";
-import dotenv from "dotenv";
 import type { SteamGames, User } from "../types";
-dotenv.config({ path: "../../../.env" });
+import type { SGDBImage } from "steamgriddb";
 
-const uri = process.env.ATLAS_URI;
+const uri = import.meta.env.VITE_ATLAS_URI;
 export const dbClient = new MongoClient(uri as string);
 
 let clientConnection: Promise<MongoClient> | null = null;
@@ -107,7 +105,7 @@ export async function getSteamGameDetails(
   }
 }
 
-export async function storeSteamGrids(appid: number, grids: SteamGrid[]) {
+export async function storeSteamGrids(appid: number, grids: SGDBImage[]) {
   try {
     const client = await ensureConnected();
     const collection = client.db("gamecc").collection("steam_grids");
@@ -125,12 +123,12 @@ export async function storeSteamGrids(appid: number, grids: SteamGrid[]) {
   }
 }
 
-export async function getSteamGrids(appid: number): Promise<SteamGrid[]> {
+export async function getSteamGrids(appid: number): Promise<SGDBImage[]> {
   try {
     const client = await ensureConnected();
     const collection = client.db("gamecc").collection("steam_grids");
     const doc = await collection.findOne({ appid });
-    return doc ? (doc.grids as SteamGrid[]) : [];
+    return doc ? (doc.grids as SGDBImage[]) : [];
   } catch (error) {
     console.error("Error retrieving Steam grids:", error);
     throw error;

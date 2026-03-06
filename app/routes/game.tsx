@@ -57,7 +57,7 @@ export async function loader({ context, params }: Route.LoaderArgs) {
 
   let details: SteamAppDetailsData | null = null;
   try {
-    const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+    const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
     const storeRes = await api.getGameStoreDetails(appid.toString());
     const { data } = storeRes[appid.toString()];
     if (!data) {
