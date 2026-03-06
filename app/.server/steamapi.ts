@@ -1,5 +1,3 @@
-import { SteamAppDetailsResponseSchema } from "./schemas";
-
 export class SteamAPI {
   private apiKey: string;
 

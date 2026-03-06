@@ -3,7 +3,7 @@ import type { Route } from "./+types/sign-in";
 import { getUserFromSession } from "../.server/auth";
 import { userContext } from "~/context";
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
     { title: "GameCC" },
     { name: "description", content: "Sign in to your GameCC account" },

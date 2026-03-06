@@ -8,18 +8,19 @@ import {
 } from "./db/db";
 import type { SteamGameDetails, SteamGames, User } from "./types";
 import { getSession } from "./sessions";
+import type { SGDBImage } from "steamgriddb";
 
 class SteamStrategy extends BaseSteamStrategy<string> {
   constructor() {
     super(
       async () => ({
-        returnURL: process.env.STEAM_RETURN_URL as string,
+        returnURL: import.meta.env.VITE_STEAM_RETURN_URL as string,
       }),
       async ({ userID }) => {
-        const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+        const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
         const user = (await api.getUserSummary(userID)) as User;
         const games = (await new SteamAPI(
-          process.env.STEAM_API_KEY as string,
+          import.meta.env.VITE_STEAM_API_KEY as string,
         ).getUserOwnedGames(userID)) as SteamGames;
         return await upsertUser(user, games);
       },
@@ -77,7 +78,7 @@ async function fetchAndStoreGameGrids(games: SteamGames) {
   try {
     const { default: SGDB } = await import("steamgriddb");
     const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
-    const gridsByAppid: Record<number, any[]> = {};
+    const gridsByAppid: Record<number, SGDBImage[]> = {};
     const gridPromises = games.map(async (game) => {
       try {
         gridsByAppid[game.appid] = await client.getGridsBySteamAppId(

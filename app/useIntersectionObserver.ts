@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 export function useIntersectionObserver({
   target,
@@ -8,6 +8,7 @@ export function useIntersectionObserver({
   threshold = 1.0,
   enabled = true,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   target: React.RefObject<any>;
   onIntersect: () => void;
   root?: Element | null;
