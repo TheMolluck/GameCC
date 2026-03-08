@@ -1,6 +1,10 @@
+import type { SteamGameDetails } from "../types";
 import { MongoClient } from "mongodb";
 import type { SteamGames, User } from "../types";
+import type { SGDBImage } from "steamgriddb";
+import { setServers } from "node:dns";
 
+setServers(["8.8.8.8", "8.8.4.4"]);
 const uri = import.meta.env.VITE_ATLAS_URI;
 export const dbClient = new MongoClient(uri as string);
 
@@ -44,9 +48,29 @@ export async function storeSteamUserandGames(user: User, games: SteamGames) {
         { $set: { ...user, games: games } },
         { upsert: true },
       );
-    console.log(`User ${user.steamid} has been upserted.`);
   } catch (error) {
     console.error("Error storing steam user and games:", error);
+    throw error;
+  }
+}
+
+export async function storeSteamGameDetails(
+  appid: number,
+  details: SteamGameDetails,
+) {
+  try {
+    const client = await ensureConnected();
+    const collection = client.db("gamecc").collection("steam_game_details");
+    const existing = await collection.findOne({ appid });
+    if (!existing) {
+      await collection.insertOne({ appid, details });
+    } else {
+      if (JSON.stringify(existing.details) !== JSON.stringify(details)) {
+        await collection.updateOne({ appid }, { $set: { details } });
+      }
+    }
+  } catch (error) {
+    console.error("Error storing Steam game details:", error);
     throw error;
   }
 }
@@ -65,6 +89,50 @@ export async function getGamesByUserId(steamid: string) {
     }
   } catch (error) {
     console.error("Error fetching games by user id:", error);
+    throw error;
+  }
+}
+
+export async function getSteamGameDetails(
+  appid: number,
+): Promise<SteamGameDetails | null> {
+  try {
+    const client = await ensureConnected();
+    const collection = client.db("gamecc").collection("steam_game_details");
+    const doc = await collection.findOne({ appid });
+    return doc ? (doc.details as SteamGameDetails) : null;
+  } catch (error) {
+    console.error("Error retrieving Steam game details:", error);
+    throw error;
+  }
+}
+
+export async function storeSteamGrids(appid: number, grids: SGDBImage[]) {
+  try {
+    const client = await ensureConnected();
+    const collection = client.db("gamecc").collection("steam_grids");
+    const existing = await collection.findOne({ appid });
+    if (!existing) {
+      await collection.insertOne({ appid, grids });
+    } else {
+      if (JSON.stringify(existing.grids) !== JSON.stringify(grids)) {
+        await collection.updateOne({ appid }, { $set: { grids } });
+      }
+    }
+  } catch (error) {
+    console.error("Error storing Steam grids:", error);
+    throw error;
+  }
+}
+
+export async function getSteamGrids(appid: number): Promise<SGDBImage[]> {
+  try {
+    const client = await ensureConnected();
+    const collection = client.db("gamecc").collection("steam_grids");
+    const doc = await collection.findOne({ appid });
+    return doc ? (doc.grids as SGDBImage[]) : [];
+  } catch (error) {
+    console.error("Error retrieving Steam grids:", error);
     throw error;
   }
 }

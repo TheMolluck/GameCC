@@ -1,5 +1,3 @@
-import { SteamAppDetailsResponseSchema } from "./schemas";
-
 export class SteamAPI {
   private apiKey: string;
 
@@ -41,14 +39,14 @@ export class SteamAPI {
         }
       });
   }
-  async getGameStoreDetails(steamId: string) {
+
+  async getGameStoreDetails(appId: string) {
     return fetch(
-      `https://store.steampowered.com/api/appdetails?appids=${steamId}`,
+      `https://store.steampowered.com/api/appdetails?appids=${appId}`,
     )
       .then((response) => response.json())
       .then((data) => {
-        const parsedData = SteamAppDetailsResponseSchema.parse(data);
-        return parsedData;
+        return data;
       });
   }
 }

@@ -23,7 +23,7 @@ const authMiddleware: MiddlewareFunction = async (
 
 export const middleware: MiddlewareFunction[] = [authMiddleware];
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
     { title: "GameCC" },
     { name: "description", content: "Welcome to GameCC!" },
@@ -35,7 +35,7 @@ export async function loader({ context }: Route.LoaderArgs) {
   return { user };
 }
 
-export default function Home({ loaderData }: Route.ComponentProps) {
+export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950">
       <h1 className="text-5xl font-extrabold mb-6 text-emerald-300">
