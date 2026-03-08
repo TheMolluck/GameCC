@@ -2,7 +2,9 @@ import type { SteamGameDetails } from "../types";
 import { MongoClient } from "mongodb";
 import type { SteamGames, User } from "../types";
 import type { SGDBImage } from "steamgriddb";
+import { setServers } from "node:dns";
 
+setServers(["8.8.8.8", "8.8.4.4"]);
 const uri = import.meta.env.VITE_ATLAS_URI;
 export const dbClient = new MongoClient(uri as string);
 

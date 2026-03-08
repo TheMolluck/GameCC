@@ -7,7 +7,8 @@ import type { SteamGame } from "~/.server/types";
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
 import { SteamAPI } from "~/.server/steamapi";
-import type { SteamAppDetailsData } from "~/.server/schemas";
+import { SimpleCache } from "~/.server/cache";
+import type { SteamGameDetails } from "~/.server/types";
 
 export function meta({ data }: Route.MetaArgs) {
   const title = data?.game?.name
@@ -55,17 +56,50 @@ export async function loader({ context, params }: Route.LoaderArgs) {
     throw redirect("/library");
   }
 
-  let details: SteamAppDetailsData | null = null;
-  try {
-    const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
-    const storeRes = await api.getGameStoreDetails(appid.toString());
-    const { data } = storeRes[appid.toString()];
-    if (!data) {
-      throw new Error("No data found for the given appid.");
+  // Try cache first, then DB, then API
+  interface DetailsCacheGlobal {
+    __detailsCache?: SimpleCache<SteamGameDetails>;
+  }
+  const globalWithCache = globalThis as typeof globalThis & DetailsCacheGlobal;
+  const detailsCache: SimpleCache<SteamGameDetails> =
+    globalWithCache.__detailsCache ??
+    (globalWithCache.__detailsCache = new SimpleCache<SteamGameDetails>(
+      5 * 60 * 1000,
+    ));
+
+  let details: SteamGameDetails | null = null;
+  const cacheKey = String(appid);
+  const cached = detailsCache.get(cacheKey);
+  if (cached) {
+    details = cached as SteamGameDetails;
+  } else {
+    try {
+      const dbDetails = await import("~/.server/db/db").then((m) =>
+        m.getSteamGameDetails(appid),
+      );
+      if (dbDetails) {
+        details = dbDetails;
+        detailsCache.set(cacheKey, details);
+      }
+    } catch (err) {
+      console.error(`Failed to fetch details for appid ${appid} from DB:`, err);
     }
-    details = data;
-  } catch (err) {
-    console.error("Failed to fetch game details:", err);
+    if (!details) {
+      try {
+        const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
+        const storeRes = await api.getGameStoreDetails(appid.toString());
+        const { data } = storeRes[appid.toString()];
+        if (!data) {
+          throw new Error("No data found for the given appid.");
+        }
+        details = data;
+        if (details) {
+          detailsCache.set(cacheKey, details);
+        }
+      } catch (err) {
+        console.error("Failed to fetch game details from API:", err);
+      }
+    }
   }
 
   return { game, details, user: userId };
@@ -84,7 +118,7 @@ function formatTime(hours: number): string {
 export default function GamePage({ loaderData }: Route.ComponentProps) {
   const { game, details } = loaderData as {
     game: SteamGame;
-    details: SteamAppDetailsData;
+    details: SteamGameDetails;
   };
   const [selectedScreenshot, setSelectedScreenshot] = React.useState<
     number | null
@@ -381,7 +415,9 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                 <button
                   onClick={() => setSelectedScreenshot(selectedScreenshot + 1)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition"
-                ></button>
+                >
+                  →
+                </button>
               )}
           </div>
         </div>

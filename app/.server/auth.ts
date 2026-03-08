@@ -51,7 +51,7 @@ export async function getUserFromSession(request: Request) {
 }
 
 async function fetchAndStoreGameDetails(games: SteamGames) {
-  const api = new SteamAPI(process.env.STEAM_API_KEY as string);
+  const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
   const detailsPromises = games.map(async (game) => {
     try {
       const detailsResponse = await api.getGameStoreDetails(
@@ -77,7 +77,7 @@ async function fetchAndStoreGameDetails(games: SteamGames) {
 async function fetchAndStoreGameGrids(games: SteamGames) {
   try {
     const { default: SGDB } = await import("steamgriddb");
-    const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
+    const client = new SGDB(import.meta.env.VITE_STEAMGRID_API_KEY as string);
     const gridsByAppid: Record<number, SGDBImage[]> = {};
     const gridPromises = games.map(async (game) => {
       try {
@@ -87,6 +87,10 @@ async function fetchAndStoreGameGrids(games: SteamGames) {
         await storeSteamGrids(game.appid, gridsByAppid[game.appid]);
       } catch (err) {
         gridsByAppid[game.appid] = [];
+        console.error(
+          `Failed to fetch/store grids for appid ${game.appid}:`,
+          err,
+        );
       }
     });
     await Promise.all(gridPromises);
