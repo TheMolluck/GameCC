@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import React, { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router";
 
 interface NavbarProps {
   user: string | null;
@@ -8,6 +9,7 @@ interface NavbarProps {
 export default function Navbar({ user }: NavbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -38,60 +40,53 @@ export default function Navbar({ user }: NavbarProps) {
         </div>
         <div className="flex items-center gap-4">
           {user ? (
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative flex items-center gap-2" ref={dropdownRef}>
               <button
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-100 rounded-lg shadow hover:bg-emerald-700 transition-colors duration-200 focus:outline-none"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-emerald-300 font-semibold rounded-lg shadow hover:bg-emerald-700 transition-colors duration-200 focus:outline-none"
                 onClick={() => setDropdownOpen((open) => !open)}
                 aria-haspopup="true"
                 aria-expanded={dropdownOpen}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="lucide lucide-ellipsis-vertical-icon lucide-ellipsis-vertical"
-                >
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="12" cy="5" r="1" />
-                  <circle cx="12" cy="19" r="1" />
-                </svg>
+                <span>{user}</span>
               </button>
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-emerald-700/40 rounded-lg shadow-lg z-50 animate-fade-in">
-                  <NavLink
-                    to="/library"
-                    className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white rounded-t-lg transition-colors"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Library
-                  </NavLink>
-                  <NavLink
-                    to="/compare"
-                    className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Compare
-                  </NavLink>
-                  <NavLink
-                    to="/account"
-                    className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Account Settings
-                  </NavLink>
-                  <NavLink
-                    to="/link-account"
-                    className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Link New Game Account
-                  </NavLink>
+                <div className="absolute left-0 top-full w-full min-w-[180px] bg-slate-900 border border-emerald-700/40 rounded-lg shadow-lg z-50 animate-fade-in">
+                  {location.pathname !== "/library" && (
+                    <NavLink
+                      to="/library"
+                      className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white rounded-t-lg transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Library
+                    </NavLink>
+                  )}
+                  {location.pathname !== "/compare" && (
+                    <NavLink
+                      to="/compare"
+                      className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Compare
+                    </NavLink>
+                  )}
+                  {location.pathname !== "/account" && (
+                    <NavLink
+                      to="/account"
+                      className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Account Settings
+                    </NavLink>
+                  )}
+                  {location.pathname !== "/link-account" && (
+                    <NavLink
+                      to="/link-account"
+                      className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Link New Game Account
+                    </NavLink>
+                  )}
                   <NavLink
                     to="/auth/sign-out"
                     className="block px-4 py-2 text-red-400 hover:bg-red-600 hover:text-white rounded-b-lg transition-colors"
