@@ -50,7 +50,7 @@ export default function Navbar({ user }: NavbarProps) {
                 <span>{user}</span>
               </button>
               {dropdownOpen && (
-                <div className="absolute left-0 top-full w-full min-w-[180px] bg-slate-900 border border-emerald-700/40 rounded-lg shadow-lg z-50 animate-fade-in">
+                <div className="absolute left-0 top-full w-full min-w-45 bg-slate-900 border border-emerald-700/40 rounded-lg shadow-lg z-50 animate-fade-in">
                   {location.pathname !== "/library" && (
                     <NavLink
                       to="/library"
@@ -67,6 +67,15 @@ export default function Navbar({ user }: NavbarProps) {
                       onClick={() => setDropdownOpen(false)}
                     >
                       Compare
+                    </NavLink>
+                  )}
+                  {location.pathname !== "/friends" && (
+                    <NavLink
+                      to="/friends"
+                      className="block px-4 py-2 text-slate-100 hover:bg-emerald-700 hover:text-white transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Friends
                     </NavLink>
                   )}
                   {location.pathname !== "/account" && (

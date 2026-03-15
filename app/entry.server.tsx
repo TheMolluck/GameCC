@@ -1,4 +1,9 @@
 import { PassThrough } from "node:stream";
+import { setupFriendCollections } from "./.server/db/setupFriendsCollections";
+
+setupFriendCollections().catch((err) => {
+  console.error("Failed to setup friends collections:", err);
+});
 
 import type { EntryContext } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";

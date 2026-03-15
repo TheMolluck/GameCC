@@ -11,4 +11,5 @@ export default [
   route("auth/sign-in", "routes/sign-in._index.ts"),
   route("auth/steam/return", "routes/sign-in.steam.return._index.ts"),
   route("auth/sign-out", "routes/sign-out._index.ts"),
+  route("friends", "routes/friends._index.ts"),
 ] satisfies RouteConfig;

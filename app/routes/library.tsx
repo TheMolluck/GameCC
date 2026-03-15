@@ -1,10 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { redirect, NavLink } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/library";
 import { getGamesByUserId } from "~/.server/db/db";
-import { SimpleCache } from "~/.server/cache";
+
 import type { SteamGame, SteamGameDetails } from "~/.server/types";
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
@@ -36,133 +42,52 @@ const authMiddleware: MiddlewareFunction = async (
 
 export const middleware: MiddlewareFunction[] = [authMiddleware];
 
-// Caches for details and grids (5 min TTL)
-const detailsCache = new SimpleCache<SteamGameDetails>(5 * 60 * 1000);
-const gridsCache = new SimpleCache<any[]>(5 * 60 * 1000);
-
 export async function loader({ context }: Route.LoaderArgs) {
   const userId = context.get(userContext);
   let games: SteamGame[] = [];
-  const gameDetails: Record<number, SteamAppDetailsData> = {};
-  const gridsByAppid: Record<number, SGDBImage[]> = {};
+  let gridsByAppid: Record<number, SGDBImage[]> = {};
 
   if (userId) {
-    let userGames: SteamGame[] = [];
     try {
       const [dbGames] = await Promise.all([getGamesByUserId(userId)]);
-      userGames = dbGames as SteamGame[];
+      games = dbGames as SteamGame[];
     } catch (err) {
       console.error(`Failed to fetch games from DB for user ${userId}:`, err);
       // if DB fetch fails, try fetching from Steam API as fallback
       try {
         const api = new SteamAPI(process.env.STEAM_API_KEY as string);
         const apiGames = await api.getUserOwnedGames(userId);
-        userGames = apiGames as SteamGame[];
+        games = apiGames as SteamGame[];
       } catch (apiErr) {
         console.error(
           `Failed to fetch games from Steam API for user ${userId}:`,
           apiErr,
         );
-        userGames = [];
-      }
-    }
-    games = userGames;
-
-    // Fetch details with cache
-    const detailsResults = await Promise.all(
-      games.map(async (game) => {
-        const cacheKey = String(game.appid);
-        let details = detailsCache.get(cacheKey);
-        if (!details) {
-          try {
-            const dbDetails = await import("~/.server/db/db").then((m) =>
-              m.getSteamGameDetails(game.appid),
-            );
-            if (dbDetails) {
-              details = dbDetails;
-              detailsCache.set(cacheKey, details);
-            }
-          } catch (err) {
-            console.error(
-              `Failed to fetch details for appid ${game.appid}:`,
-              err,
-            );
-            // If DB fetch fails, try fetching from API as fallback
-            try {
-              const api = new SteamAPI(process.env.STEAM_API_KEY as string);
-              const detailsResponse = await api.getGameStoreDetails(
-                game.appid.toString(),
-              );
-              const detailsData = detailsResponse[game.appid];
-              if (detailsData && detailsData.success && detailsData.data) {
-                details = detailsData.data as SteamGameDetails;
-                detailsCache.set(cacheKey, details);
-              }
-            } catch (apiErr) {
-              console.error(
-                `Failed to fetch details from API for appid ${game.appid}:`,
-                apiErr,
-              );
-            }
-          }
-        }
-        if (details) {
-          return { appid: game.appid, details };
-        }
-        return null;
-      }),
-    );
-    for (const result of detailsResults) {
-      if (result && result.appid && result.details) {
-        (gameDetails as any)[result.appid] = result.details;
-      }
-    }
-
-    // Fetch grids with cache
-    const gridsResults = await Promise.all(
-      games.map(async (game) => {
-        const cacheKey = String(game.appid);
-        let grids = gridsCache.get(cacheKey);
-        if (!grids) {
-          try {
-            grids = await import("~/.server/db/db").then((m) =>
-              m.getSteamGrids(game.appid),
-            );
-            if (grids) {
-              gridsCache.set(cacheKey, grids);
-            }
-          } catch (err) {
-            console.error(
-              `Failed to fetch grids for appid ${game.appid}:`,
-              err,
-            );
-            // If DB fetch fails, try fetching from SGDB API as fallback
-            try {
-              const { default: SGDB } = await import("steamgriddb");
-              const client = new SGDB(process.env.STEAMGRID_API_KEY as string);
-              const apiGrids = await client.getGridsBySteamAppId(game.appid);
-              grids = apiGrids || [];
-              gridsCache.set(cacheKey, grids);
-            } catch (apiErr) {
-              console.error(
-                `Failed to fetch grids from SGDB API for appid ${game.appid}:`,
-                apiErr,
-              );
-              grids = [];
-            }
-          }
-        }
-        return { appid: game.appid, grids: grids || [] };
-      }),
-    );
-    for (const result of gridsResults) {
-      if (result && result.appid) {
-        gridsByAppid[result.appid] = result.grids;
+        games = [];
       }
     }
   }
 
-  return { games, gameDetails, gridsByAppid, user: userId };
+  // Fetch grids from DB for all games
+  try {
+    const { getSteamGrids } = await import("~/.server/db/db");
+    const gridPromises = games.map(async (game) => {
+      try {
+        const grids = await getSteamGrids(game.appid);
+        return [game.appid, grids || []];
+      } catch {
+        return [game.appid, []];
+      }
+    });
+    const gridResults = await Promise.all(gridPromises);
+    gridsByAppid = Object.fromEntries(gridResults);
+  } catch (err) {
+    console.error("Failed to fetch grids from DB", err);
+    gridsByAppid = {};
+  }
+
+  // Return games, user, and DB grids
+  return { games, user: userId, gridsByAppid };
 }
 
 type SortType =
@@ -172,7 +97,19 @@ type SortType =
   | "playtime-asc"
   | "last-played";
 
-function GameCard({ game, grids }: { game: SteamGame; grids: SGDBImage[] }) {
+function GameCard({
+  game,
+  details,
+  grids,
+  loadingDetails,
+  loadingGrids,
+}: {
+  game: SteamGame;
+  details: SteamGameDetails | null;
+  grids: SGDBImage[];
+  loadingDetails: boolean;
+  loadingGrids: boolean;
+}) {
   const formatTime = (hours: number): string => {
     if (hours < 1) {
       return `${Math.round(hours * 60)}m`;
@@ -195,18 +132,35 @@ function GameCard({ game, grids }: { game: SteamGame; grids: SGDBImage[] }) {
   return (
     <NavLink to={`/game/${game.appid}`} className="block group">
       <div className="relative h-80 rounded-xl overflow-hidden bg-linear-to-b from-slate-800 to-slate-900 border border-emerald-700/40 transition-all duration-300 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-400/20 cursor-pointer">
-        <img
-          src={grids.length > 0 ? String(grids[0].url) : "/placeholder.png"}
-          alt={game.name}
-          className="w-fit h-full group-hover:scale-110 transition-transform duration-300"
-          style={{ aspectRatio: "16/9", display: "block" }}
-        />
+        {/* Grid image or loading */}
+        {loadingGrids ? (
+          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 bg-gray-900">
+            Loading image...
+          </div>
+        ) : grids && grids.length > 0 ? (
+          <img
+            src={String(grids[0].url)}
+            alt={game.name}
+            className="w-fit h-full group-hover:scale-110 transition-transform duration-300"
+            style={{ aspectRatio: "16/9", display: "block" }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-xs text-gray-600 bg-gray-900">
+            No image
+          </div>
+        )}
 
         <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         <div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <h3 className="text-sm font-bold text-white mb-3 line-clamp-2">
-            {game.name}
+            {loadingDetails ? (
+              <span className="text-xs text-gray-400">Loading details...</span>
+            ) : details ? (
+              details.name
+            ) : (
+              game.name
+            )}
           </h3>
           <div className="space-y-2 text-xs text-gray-200">
             <div className="flex justify-between">
@@ -230,41 +184,29 @@ function GameCard({ game, grids }: { game: SteamGame; grids: SGDBImage[] }) {
   );
 }
 
-import { useState, useMemo, useRef, useCallback } from "react";
 import { useIntersectionObserver } from "../useIntersectionObserver";
 import { Spinner } from "../content/spinner";
-import type { SteamAppDetailsData } from "~/.server/schemas";
+
 import type { SGDBImage } from "steamgriddb";
 
 const PAGE_SIZE = 24;
 
 export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
-  const { games, gameDetails, gridsByAppid } = loaderData;
+  const { games, gridsByAppid: loaderGridsByAppid = {} } = loaderData;
 
-  // Collect all genres and categories from gameDetails
-  const allGenres = useMemo(() => {
-    const genreSet = new Set<string>();
-    Object.values(gameDetails).forEach(
-      (details: SteamAppDetailsData | undefined) => {
-        details?.genres?.forEach((g: { description: string }) =>
-          genreSet.add(g.description),
-        );
-      },
-    );
-    return Array.from(genreSet);
-  }, [gameDetails]);
+  // State for client-side details and grids
+  const [gameDetails, setGameDetails] = useState<
+    Record<number, SteamGameDetails | null>
+  >({});
+  const [gridsByAppid, setGridsByAppid] =
+    useState<Record<number, SGDBImage[]>>(loaderGridsByAppid);
+  const [loadingDetails, setLoadingDetails] = useState<Record<number, boolean>>(
+    {},
+  );
+  const [loadingGrids, setLoadingGrids] = useState<Record<number, boolean>>({});
 
-  const allCategories = useMemo(() => {
-    const catSet = new Set<string>();
-    Object.values(gameDetails).forEach(
-      (details: SteamAppDetailsData | undefined) => {
-        details?.categories?.forEach((c: { description: string }) =>
-          catSet.add(c.description),
-        );
-      },
-    );
-    return Array.from(catSet);
-  }, [gameDetails]);
+  const detailsCache = useRef<Record<string, SteamGameDetails | null>>({});
+  const gridsCache = useRef<Record<string, SGDBImage[]>>({});
 
   // State for filter, sort, and infinite scroll
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -279,28 +221,6 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        showGenreDropdown &&
-        genreDropdownRef.current &&
-        !genreDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowGenreDropdown(false);
-      }
-      if (
-        showCategoryDropdown &&
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowCategoryDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showGenreDropdown, showCategoryDropdown]);
-
-  // Filter and sort games
   const filteredGames = useMemo(() => {
     let filtered = games;
     if (selectedGenres.length > 0) {
@@ -337,6 +257,138 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
     });
   }, [games, gameDetails, selectedGenres, selectedCategories, sortType]);
 
+  // Collect all genres and categories from gameDetails
+  const allGenres = useMemo(() => {
+    const genreSet = new Set<string>();
+    Object.values(gameDetails).forEach((details) => {
+      details?.genres?.forEach((g: { description: string }) =>
+        genreSet.add(g.description),
+      );
+    });
+    return Array.from(genreSet);
+  }, [gameDetails]);
+
+  const allCategories = useMemo(() => {
+    const catSet = new Set<string>();
+    Object.values(gameDetails).forEach((details) => {
+      details?.categories?.forEach((c: { description: string }) =>
+        catSet.add(c.description),
+      );
+    });
+    return Array.from(catSet);
+  }, [gameDetails]);
+
+  // Fetch details and grids for visible games after render
+  useEffect(() => {
+    filteredGames.slice(0, visibleCount).forEach((game: SteamGame) => {
+      if (
+        gameDetails[game.appid] === undefined &&
+        !loadingDetails[game.appid]
+      ) {
+        setLoadingDetails((ld) => ({ ...ld, [game.appid]: true }));
+        const details = detailsCache.current[String(game.appid)];
+        if (details !== undefined) {
+          setGameDetails((gd) => ({ ...gd, [game.appid]: details }));
+          setLoadingDetails((ld) => ({ ...ld, [game.appid]: false }));
+        } else {
+          fetch(
+            `https://store.steampowered.com/api/appdetails?appids=${game.appid}`,
+          )
+            .then((res) => res.json())
+            .then((detailsResponse) => {
+              const detailsData = detailsResponse[game.appid];
+              if (detailsData && detailsData.success && detailsData.data) {
+                detailsCache.current[String(game.appid)] = detailsData.data;
+                setGameDetails((gd) => ({
+                  ...gd,
+                  [game.appid]: detailsData.data,
+                }));
+              } else {
+                detailsCache.current[String(game.appid)] = null;
+                setGameDetails((gd) => ({ ...gd, [game.appid]: null }));
+              }
+            })
+            .catch(() => {
+              detailsCache.current[String(game.appid)] = null;
+              setGameDetails((gd) => ({ ...gd, [game.appid]: null }));
+            })
+            .finally(() =>
+              setLoadingDetails((ld) => ({ ...ld, [game.appid]: false })),
+            );
+        }
+      }
+      // Grids
+      if (gridsByAppid[game.appid] === undefined && !loadingGrids[game.appid]) {
+        setLoadingGrids((lg) => ({ ...lg, [game.appid]: true }));
+        const cachedGrids = gridsCache.current[String(game.appid)];
+        if (cachedGrids !== undefined) {
+          setGridsByAppid((gb) => ({ ...gb, [game.appid]: cachedGrids }));
+          setLoadingGrids((lg) => ({ ...lg, [game.appid]: false }));
+        } else {
+          import("steamgriddb")
+            .then(({ default: SGDB }) => {
+              const client = new SGDB(
+                process.env.VITE_STEAMGRID_API_KEY as string,
+              );
+              return client.getGridsBySteamAppId(game.appid);
+            })
+            .then((apiGrids) => {
+              const gridsArr = apiGrids || [];
+              if (!Array.isArray(gridsArr) || gridsArr.length === 0) {
+                console.warn(
+                  "No SteamGridDB images found for appid:",
+                  game.appid,
+                  gridsArr,
+                );
+              }
+              gridsCache.current[String(game.appid)] = gridsArr;
+              setGridsByAppid((gb) => ({ ...gb, [game.appid]: gridsArr }));
+            })
+            .catch((err) => {
+              console.error(
+                "SteamGridDB fetch error for appid",
+                game.appid,
+                err,
+              );
+              gridsCache.current[String(game.appid)] = [];
+              setGridsByAppid((gb) => ({ ...gb, [game.appid]: [] }));
+            })
+            .finally(() => {
+              setLoadingGrids((lg) => ({ ...lg, [game.appid]: false }));
+            });
+        }
+      }
+    });
+  }, [
+    filteredGames,
+    visibleCount,
+    gameDetails,
+    loadingDetails,
+    gridsByAppid,
+    loadingGrids,
+  ]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        showGenreDropdown &&
+        genreDropdownRef.current &&
+        !genreDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowGenreDropdown(false);
+      }
+      if (
+        showCategoryDropdown &&
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowCategoryDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showGenreDropdown, showCategoryDropdown]);
+
   // Reset visibleCount when filters or sort change
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -352,7 +404,7 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
           Math.min(prev + PAGE_SIZE, filteredGames.length),
         );
         setIsLoading(false);
-      }, 400); // Simulate async load
+      }, 400);
     }
   }, [isLoading, visibleCount, filteredGames.length]);
 
@@ -490,7 +542,10 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
               <GameCard
                 key={game.appid}
                 game={game}
+                details={gameDetails[game.appid] || null}
                 grids={gridsByAppid[game.appid] || []}
+                loadingDetails={!!loadingDetails[game.appid]}
+                loadingGrids={!!loadingGrids[game.appid]}
               />
             ))
         )}
