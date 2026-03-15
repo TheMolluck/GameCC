@@ -137,3 +137,22 @@ export type SteamAppDetailsResponse = z.infer<
   typeof SteamAppDetailsResponseSchema
 >;
 export type SteamAppDetailsData = z.infer<typeof SteamAppDetailsDataSchema>;
+
+export const FriendRequestSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  status: z.enum(["pending", "accepted", "declined", "cancelled"]),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const FriendSchema = z.object({
+  user1: z.string(),
+  user2: z.string(),
+  since: z.date(),
+  nickname1: z.string().optional(),
+  nickname2: z.string().optional(),
+  blockedBy: z.string().optional(),
+  ignoreUntil1: z.date().optional(),
+  ignoreUntil2: z.date().optional(),
+});

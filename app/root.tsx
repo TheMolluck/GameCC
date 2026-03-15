@@ -11,6 +11,7 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { getUserFromSession } from "./.server/auth";
 import { userContext } from "~/context";
+import { getUsername } from "~/.server/db/username";
 import { useNavigation } from "react-router";
 import { Spinner } from "./content/spinner";
 import Navbar from "./routes/navbar";
@@ -30,9 +31,13 @@ export const links: Route.LinksFunction = () => [
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const user = (await getUserFromSession(request).catch(() => null)) ?? null;
+  let userDisplayName: string | null = null;
+  if (user) {
+    userDisplayName = (await getUsername(user)) ?? user;
+  }
   // make the user available to downstream loaders via context
   context.set(userContext, user);
-  return { user };
+  return { user, userDisplayName };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -55,7 +60,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user } = loaderData;
+  const { user, userDisplayName } = loaderData;
   const navigation = useNavigation();
   return (
     <>
@@ -63,7 +68,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <Spinner />
       ) : (
         <>
-          <Navbar user={user} />
+          <Navbar user={userDisplayName} />
           <Outlet />
         </>
       )}

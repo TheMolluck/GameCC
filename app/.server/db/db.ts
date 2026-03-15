@@ -10,7 +10,7 @@ export const dbClient = new MongoClient(uri as string);
 
 let clientConnection: Promise<MongoClient> | null = null;
 
-async function ensureConnected() {
+export async function ensureConnected() {
   if (!clientConnection) {
     clientConnection = dbClient.connect().then(() => dbClient);
   }
@@ -133,6 +133,16 @@ export async function getSteamGrids(appid: number): Promise<SGDBImage[]> {
     return doc ? (doc.grids as SGDBImage[]) : [];
   } catch (error) {
     console.error("Error retrieving Steam grids:", error);
+    throw error;
+  }
+}
+
+export async function deleteUserAndGames(steamid: string): Promise<void> {
+  try {
+    const client = await ensureConnected();
+    await client.db("gamecc").collection("users").deleteOne({ steamid });
+  } catch (error) {
+    console.error("Error deleting user and games:", error);
     throw error;
   }
 }
