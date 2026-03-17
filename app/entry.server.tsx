@@ -1,9 +1,26 @@
 import { PassThrough } from "node:stream";
 import { setupFriendCollections } from "./.server/db/setupFriendsCollections";
+import { closeDatabase } from "./.server/db/db";
 
 setupFriendCollections().catch((err) => {
   console.error("Failed to setup friends collections:", err);
 });
+
+function shutdown() {
+  const shutdown = async () => {
+    try {
+      await closeDatabase();
+      process.exit(0);
+    } catch (err) {
+      console.error("Error during MongoDB shutdown:", err);
+      process.exit(1);
+    }
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+shutdown();
 
 import type { EntryContext } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";

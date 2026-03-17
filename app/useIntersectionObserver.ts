@@ -8,8 +8,7 @@ export function useIntersectionObserver({
   threshold = 1.0,
   enabled = true,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  target: React.RefObject<any>;
+  target: React.RefObject<HTMLDivElement | null>;
   onIntersect: () => void;
   root?: Element | null;
   rootMargin?: string;
@@ -20,21 +19,23 @@ export function useIntersectionObserver({
     if (!enabled) return;
     const el = target && target.current;
     if (!el) return;
-    const observer = new window.IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          onIntersect();
-        }
-      },
-      {
-        root,
-        rootMargin,
-        threshold,
-      },
-    );
-    observer.observe(el);
-    return () => {
-      observer.unobserve(el);
-    };
+    if (typeof window !== "undefined" && window.IntersectionObserver) {
+      const observer = new window.IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            onIntersect();
+          }
+        },
+        {
+          root,
+          rootMargin,
+          threshold,
+        },
+      );
+      observer.observe(el);
+      return () => {
+        observer.unobserve(el);
+      };
+    }
   }, [target, enabled, root, rootMargin, threshold, onIntersect]);
 }

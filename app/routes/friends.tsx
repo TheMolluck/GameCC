@@ -35,10 +35,36 @@ export default function FriendsPage() {
     ? loaderData.friends
     : [];
   const requests: FriendRequest[] = Array.isArray(loaderData?.requests)
-    ? loaderData.requests
+    ? loaderData.requests.filter((r) => r.status === "pending")
     : [];
   const myId: string = loaderData?.user || "";
   const fetcher = useFetcher();
+  const [friendRequestMessage, setFriendRequestMessage] = React.useState<
+    string | null
+  >(null);
+
+  // Show notification on friend request result
+  React.useEffect(() => {
+    if (
+      fetcher.formData &&
+      fetcher.formData.get("_action") === "send-friend-request"
+    ) {
+      if (fetcher.data?.success) {
+        setFriendRequestMessage("Friend request sent!");
+      } else if (fetcher.data?.error) {
+        if (fetcher.data.error === "DUPLICATE_FRIEND_REQUEST") {
+          setFriendRequestMessage("Friend request was already sent.");
+        } else {
+          setFriendRequestMessage(`Error: ${fetcher.data.error}`);
+        }
+      }
+    }
+    // Clear message after 3 seconds
+    if (friendRequestMessage) {
+      const timeout = setTimeout(() => setFriendRequestMessage(null), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [fetcher.data, fetcher.formData, friendRequestMessage]);
   const [nickname, setNickname] = React.useState("");
   const [ignoreDuration, setIgnoreDuration] = React.useState(0);
   const [friendToNickname, setFriendToNickname] = React.useState<string | null>(
@@ -63,6 +89,11 @@ export default function FriendsPage() {
 
   return (
     <div className="container mx-auto py-8">
+      {friendRequestMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-800 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
+          {friendRequestMessage}
+        </div>
+      )}
       <h1 className="text-3xl font-bold mb-6 text-emerald-300">Friends</h1>
       <section className="mb-10">
         <h2 className="text-xl font-semibold mb-2 text-emerald-200">
@@ -153,9 +184,30 @@ export default function FriendsPage() {
               key={i}
               className="flex flex-col md:flex-row md:items-center justify-between p-4 gap-2"
             >
-              <span className="font-semibold text-slate-100">{req.from}</span>
+              <span className="font-semibold text-slate-100">
+                {req.from === myId ? `To ${req.to}` : req.from}
+              </span>
               <div className="flex flex-wrap gap-2 mt-2 md:mt-0">
-                {req.status === "pending" && (
+                {/* Outgoing request: show 'Pending' */}
+                {req.status === "pending" && req.from === myId && (
+                  <>
+                    <span className="text-yellow-400 font-semibold">
+                      Pending (to {req.to})
+                    </span>
+                    <fetcher.Form method="post">
+                      <input type="hidden" name="requestId" value={req._id} />
+                      <button
+                        name="_action"
+                        value="cancel-friend-request"
+                        className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-red-700"
+                      >
+                        Cancel
+                      </button>
+                    </fetcher.Form>
+                  </>
+                )}
+                {/* Incoming request: allow accept/decline */}
+                {req.status === "pending" && req.to === myId && (
                   <>
                     <fetcher.Form method="post">
                       <input type="hidden" name="requestId" value={req._id} />
@@ -178,9 +230,6 @@ export default function FriendsPage() {
                       </button>
                     </fetcher.Form>
                   </>
-                )}
-                {req.status !== "pending" && (
-                  <span className="text-slate-400">{req.status}</span>
                 )}
               </div>
             </li>
