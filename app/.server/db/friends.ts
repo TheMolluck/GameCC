@@ -1,3 +1,18 @@
+// Cancel (withdraw) a friend request
+export async function cancelFriendRequest(requestId: string, user: string) {
+  const client = await ensureConnected();
+  const collection = client
+    .db("gamecc")
+    .collection<FriendRequest>("friend_requests");
+  const req = await collection.findOne({ _id: new ObjectId(requestId) });
+  if (!req || req.status !== "pending" || req.from !== user) {
+    throw new Error("Cannot cancel this request");
+  }
+  await collection.updateOne(
+    { _id: req._id },
+    { $set: { status: "cancelled", updatedAt: new Date() } },
+  );
+}
 import { ObjectId } from "mongodb";
 import { ensureConnected } from "./db";
 
@@ -29,13 +44,26 @@ export async function sendFriendRequest(from: string, to: string) {
     .db("gamecc")
     .collection<FriendRequest>("friend_requests");
   const now = new Date();
-  await collection.insertOne({
+  const existing = await collection.findOne({
     from,
     to,
     status: "pending",
-    createdAt: now,
-    updatedAt: now,
   });
+  if (existing) {
+    throw new Error("DUPLICATE_FRIEND_REQUEST");
+  }
+  try {
+    await collection.insertOne({
+      from,
+      to,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (err) {
+    console.error(`Failed to send friend request from ${from} to ${to}:`, err);
+    throw err;
+  }
 }
 
 // Accept a friend request
@@ -46,17 +74,28 @@ export async function acceptFriendRequest(requestId: string) {
     .collection<FriendRequest>("friend_requests");
   const req = await collection.findOne({ _id: new ObjectId(requestId) });
   if (!req || req.status !== "pending") throw new Error("Invalid request");
-  await collection.updateOne(
-    { _id: req._id },
+  await collection.updateMany(
+    {
+      from: req.from,
+      to: req.to,
+      status: "pending",
+    },
     { $set: { status: "accepted", updatedAt: new Date() } },
   );
-  // Add to friends
   const friends = client.db("gamecc").collection<Friend>("friends");
-  await friends.insertOne({
-    user1: req.from,
-    user2: req.to,
-    since: new Date(),
+  const existingFriend = await friends.findOne({
+    $or: [
+      { user1: req.from, user2: req.to },
+      { user1: req.to, user2: req.from },
+    ],
   });
+  if (!existingFriend) {
+    await friends.insertOne({
+      user1: req.from,
+      user2: req.to,
+      since: new Date(),
+    });
+  }
 }
 
 // Decline a friend request
@@ -158,6 +197,9 @@ export async function getFriendRequests(steamid: string) {
     .db("gamecc")
     .collection<FriendRequest>("friend_requests");
   return collection
-    .find({ $or: [{ from: steamid }, { to: steamid }] })
+    .find({
+      $or: [{ from: steamid }, { to: steamid }],
+      status: { $ne: "cancelled" },
+    })
     .toArray();
 }

@@ -2,12 +2,9 @@ import React from "react";
 import { redirect, Link } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/game";
-import { getGamesByUserId } from "~/.server/db/db";
 import type { SteamGame } from "~/.server/types";
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
-import { SteamAPI } from "~/.server/steamapi";
-import { SimpleCache } from "~/.server/cache";
 import type { SteamGameDetails } from "~/.server/types";
 
 export function meta({ data }: Route.MetaArgs) {
@@ -49,60 +46,38 @@ export async function loader({ context, params }: Route.LoaderArgs) {
     throw redirect("/library");
   }
 
-  const games = (await getGamesByUserId(userId)) as SteamGame[];
-  const game = games.find((g) => g.appid === appid);
-  if (!game) {
-    // not in library, redirect back
-    throw redirect("/library");
-  }
-
-  // Try cache first, then DB, then API
-  interface DetailsCacheGlobal {
-    __detailsCache?: SimpleCache<SteamGameDetails>;
-  }
-  const globalWithCache = globalThis as typeof globalThis & DetailsCacheGlobal;
-  const detailsCache: SimpleCache<SteamGameDetails> =
-    globalWithCache.__detailsCache ??
-    (globalWithCache.__detailsCache = new SimpleCache<SteamGameDetails>(
-      5 * 60 * 1000,
-    ));
-
+  // Fetch game details from backend API endpoint
   let details: SteamGameDetails | null = null;
-  const cacheKey = String(appid);
-  const cached = detailsCache.get(cacheKey);
-  if (cached) {
-    details = cached as SteamGameDetails;
-  } else {
-    try {
-      const dbDetails = await import("~/.server/db/db").then((m) =>
-        m.getSteamGameDetails(appid),
-      );
-      if (dbDetails) {
-        details = dbDetails;
-        detailsCache.set(cacheKey, details);
-      }
-    } catch (err) {
-      console.error(`Failed to fetch details for appid ${appid} from DB:`, err);
+  let game: SteamGame | null = null;
+  try {
+    const res = await fetch(
+      `${"http://localhost:5173"}/api/game-details?appid=${appid}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      details = data.details || null;
+      game = data.game || null; // If API returns game info
     }
-    if (!details) {
-      try {
-        const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
-        const storeRes = await api.getGameStoreDetails(appid.toString());
-        const { data } = storeRes[appid.toString()];
-        if (!data) {
-          throw new Error("No data found for the given appid.");
-        }
-        details = data;
-        if (details) {
-          detailsCache.set(cacheKey, details);
-        }
-      } catch (err) {
-        console.error("Failed to fetch game details from API:", err);
+  } catch {
+    // Optionally log error
+  }
+
+  // If not found in API, try to get game from user's library (optional, fallback)
+  if (!game) {
+    try {
+      const { getGamesByUserId } = await import("~/.server/db/db");
+      const result = await getGamesByUserId(userId);
+      if (Array.isArray(result)) {
+        game = result.find((g: SteamGame) => g.appid === appid) || null;
       }
+    } catch {
+      // ignore fallback error
     }
   }
 
-  return { game, details, user: userId };
+  // Allow page to render even if game is not in user's library
+  return { game, details, user: userId, appid };
 }
 
 function formatTime(hours: number): string {
@@ -116,13 +91,33 @@ function formatTime(hours: number): string {
 }
 
 export default function GamePage({ loaderData }: Route.ComponentProps) {
-  const { game, details } = loaderData as {
-    game: SteamGame;
-    details: SteamGameDetails;
+  const { game, details, appid } = loaderData as {
+    game?: SteamGame | null;
+    details?: SteamGameDetails | null;
+    user?: string;
+    appid: number;
   };
   const [selectedScreenshot, setSelectedScreenshot] = React.useState<
     number | null
   >(null);
+
+  // fallback UI if details are missing
+  if (!details) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-emerald-200">
+        <h1 className="text-3xl font-bold mb-4">Game Not Found</h1>
+        <p className="mb-6">
+          We couldn't find details for this game (AppID: {appid}).
+        </p>
+        <Link
+          to="/library"
+          className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+        >
+          ← Back to library
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -144,13 +139,15 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
           <div className="flex justify-between items-end w-full">
             <div>
               <h1 className="text-5xl font-bold text-emerald-300 mb-2">
-                {game.name}
+                {game?.name || details?.name || "Unknown Game"}
               </h1>
               <div className="flex gap-4 text-sm text-emerald-200">
                 {details?.release_date && (
                   <span>
                     Released:{" "}
-                    {new Date(details.release_date.date).toLocaleDateString()}
+                    {new Date(details.release_date.date).toLocaleDateString(
+                      "en-US",
+                    )}
                   </span>
                 )}
                 {details?.metacritic && (
@@ -187,7 +184,7 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   Your Stats
                 </h3>
                 <p className="text-2xl font-bold text-emerald-400">
-                  {formatTime(game.playtime_forever / 60)}
+                  {game ? formatTime(game.playtime_forever / 60) : "-"}
                 </p>
                 <p className="text-sm text-emerald-200">Total playtime</p>
               </div>

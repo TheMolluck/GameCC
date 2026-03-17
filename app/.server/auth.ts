@@ -1,14 +1,9 @@
 import { Authenticator } from "remix-auth";
 import { SteamStrategy as BaseSteamStrategy } from "@ianlucas/remix-auth-steam";
 import { SteamAPI } from "./steamapi";
-import {
-  storeSteamGameDetails,
-  storeSteamGrids,
-  storeSteamUserandGames,
-} from "./db/db";
-import type { SteamGameDetails, SteamGames, User } from "./types";
+import { storeSteamUser } from "./db/db";
 import { getSession } from "./sessions";
-import type { SGDBImage } from "steamgriddb";
+import type { User } from "./types";
 
 class SteamStrategy extends BaseSteamStrategy<string> {
   constructor() {
@@ -19,10 +14,8 @@ class SteamStrategy extends BaseSteamStrategy<string> {
       async ({ userID }) => {
         const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
         const user = (await api.getUserSummary(userID)) as User;
-        const games = (await new SteamAPI(
-          import.meta.env.VITE_STEAM_API_KEY as string,
-        ).getUserOwnedGames(userID)) as SteamGames;
-        return await upsertUser(user, games);
+        storeSteamUser(user);
+        return user.steamid;
       },
     );
   }
@@ -30,14 +23,6 @@ class SteamStrategy extends BaseSteamStrategy<string> {
 
 export const authenticator = new Authenticator<string>();
 authenticator.use(new SteamStrategy(), "steam");
-
-async function upsertUser(user: User, games: SteamGames): Promise<string> {
-  await storeSteamUserandGames(user, games);
-  await fetchAndStoreGameDetails(games);
-  await fetchAndStoreGameGrids(games);
-
-  return user.steamid;
-}
 
 export async function getUserFromSession(request: Request) {
   try {
@@ -47,54 +32,5 @@ export async function getUserFromSession(request: Request) {
   } catch (error) {
     console.error("No session found:", error);
     throw error;
-  }
-}
-
-async function fetchAndStoreGameDetails(games: SteamGames) {
-  const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
-  const detailsPromises = games.map(async (game) => {
-    try {
-      const detailsResponse = await api.getGameStoreDetails(
-        game.appid.toString(),
-      );
-      const detailsData = detailsResponse[game.appid];
-      if (detailsData && detailsData.success && detailsData.data) {
-        await storeSteamGameDetails(
-          game.appid,
-          detailsData.data as SteamGameDetails,
-        );
-      }
-    } catch (err) {
-      console.error(
-        `Failed to fetch/store details for appid ${game.appid}:`,
-        err,
-      );
-    }
-  });
-  await Promise.all(detailsPromises);
-}
-
-async function fetchAndStoreGameGrids(games: SteamGames) {
-  try {
-    const { default: SGDB } = await import("steamgriddb");
-    const client = new SGDB(import.meta.env.VITE_STEAMGRID_API_KEY as string);
-    const gridsByAppid: Record<number, SGDBImage[]> = {};
-    const gridPromises = games.map(async (game) => {
-      try {
-        gridsByAppid[game.appid] = await client.getGridsBySteamAppId(
-          game.appid,
-        );
-        await storeSteamGrids(game.appid, gridsByAppid[game.appid]);
-      } catch (err) {
-        gridsByAppid[game.appid] = [];
-        console.error(
-          `Failed to fetch/store grids for appid ${game.appid}:`,
-          err,
-        );
-      }
-    });
-    await Promise.all(gridPromises);
-  } catch (e) {
-    console.error("Failed to load SGDB client:", e);
   }
 }
