@@ -243,8 +243,9 @@ export default function FriendsPage() {
         <fetcher.Form method="post" className="flex gap-2">
           <input
             name="to"
-            placeholder="SteamID or username"
+            placeholder="Enter username"
             className="px-3 py-1 rounded bg-slate-800 text-slate-100"
+            autoComplete="off"
           />
           <button
             name="_action"
@@ -254,6 +255,32 @@ export default function FriendsPage() {
             Send
           </button>
         </fetcher.Form>
+        {fetcher.data?.error === "FRIEND_REQUEST_USE_USERNAME" && (
+          <div className="mt-2 text-red-400">
+            Please enter a valid GameCC username. SteamIDs are not accepted.
+          </div>
+        )}
+        {fetcher.data?.error === "FRIEND_REQUEST_INVALID_USERNAME_FORMAT" && (
+          <div className="mt-2 text-red-400">
+            Usernames must be 3-20 characters, using only letters, numbers, or
+            underscores.
+          </div>
+        )}
+        {fetcher.data?.error === "FRIEND_REQUEST_SELF_NOT_ALLOWED" && (
+          <div className="mt-2 text-red-400">
+            You cannot send a friend request to yourself.
+          </div>
+        )}
+        {fetcher.data?.error === "FRIEND_REQUEST_USER_NOT_FOUND" && (
+          <div className="mt-2 text-red-400">
+            No user with that username was found.
+          </div>
+        )}
+        {fetcher.data?.error === "FRIEND_REQUEST_ALREADY_FRIENDS" && (
+          <div className="mt-2 text-red-400">
+            You are already friends with this user.
+          </div>
+        )}
       </section>
       {/* Nickname Modal */}
       {friendToNickname && (

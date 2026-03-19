@@ -3,6 +3,7 @@ import { redirect, Link } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/game";
 import type { SteamGame } from "~/.server/types";
+import { getGameDetailsAndUserGame } from "./api/game-details";
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
 import type { SteamGameDetails } from "~/.server/types";
@@ -46,37 +47,7 @@ export async function loader({ context, params }: Route.LoaderArgs) {
     throw redirect("/library");
   }
 
-  // Fetch game details from backend API endpoint
-  let details: SteamGameDetails | null = null;
-  let game: SteamGame | null = null;
-  try {
-    const res = await fetch(
-      `${"http://localhost:5173"}/api/game-details?appid=${appid}`,
-      { headers: { Accept: "application/json" } },
-    );
-    if (res.ok) {
-      const data = await res.json();
-      details = data.details || null;
-      game = data.game || null; // If API returns game info
-    }
-  } catch {
-    // Optionally log error
-  }
-
-  // If not found in API, try to get game from user's library (optional, fallback)
-  if (!game) {
-    try {
-      const { getGamesByUserId } = await import("~/.server/db/db");
-      const result = await getGamesByUserId(userId);
-      if (Array.isArray(result)) {
-        game = result.find((g: SteamGame) => g.appid === appid) || null;
-      }
-    } catch {
-      // ignore fallback error
-    }
-  }
-
-  // Allow page to render even if game is not in user's library
+  const { details, game } = await getGameDetailsAndUserGame(appid, userId);
   return { game, details, user: userId, appid };
 }
 
@@ -101,8 +72,29 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
     number | null
   >(null);
 
-  // fallback UI if details are missing
-  if (!details) {
+  if (!details && game) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-emerald-200">
+        <h1 className="text-3xl font-bold mb-4">{game.name}</h1>
+        <p className="mb-2">
+          No Steam details found for this game (AppID: {appid}).
+        </p>
+        <div className="mb-4">
+          <span className="font-semibold">Total playtime:</span>{" "}
+          {typeof game.playtime_forever === "number"
+            ? formatTime(game.playtime_forever / 60)
+            : "-"}
+        </div>
+        <Link
+          to="/library"
+          className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+        >
+          ← Back to library
+        </Link>
+      </div>
+    );
+  }
+  if (!details && !game) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-emerald-200">
         <h1 className="text-3xl font-bold mb-4">Game Not Found</h1>
@@ -118,7 +110,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
       </div>
     );
   }
-
   return (
     <div
       className="min-h-screen bg-slate-950 bg-cover bg-center bg-fixed"
@@ -184,7 +175,9 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   Your Stats
                 </h3>
                 <p className="text-2xl font-bold text-emerald-400">
-                  {game ? formatTime(game.playtime_forever / 60) : "-"}
+                  {game && typeof game.playtime_forever === "number"
+                    ? formatTime(game.playtime_forever / 60)
+                    : "-"}
                 </p>
                 <p className="text-sm text-emerald-200">Total playtime</p>
               </div>

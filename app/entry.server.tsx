@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import { setupFriendCollections } from "./.server/db/setupFriendsCollections";
-import { closeDatabase } from "./.server/db/db";
+// import { closeDatabase } from "./.server/db/db";
 
 setupFriendCollections().catch((err) => {
   console.error("Failed to setup friends collections:", err);
@@ -9,6 +9,7 @@ setupFriendCollections().catch((err) => {
 function shutdown() {
   const shutdown = async () => {
     try {
+      const { closeDatabase } = await import("./.server/db/db");
       await closeDatabase();
       process.exit(0);
     } catch (err) {

@@ -18,8 +18,8 @@ import { ensureConnected } from "./db";
 
 export interface FriendRequest {
   _id?: ObjectId;
-  from: string;
-  to: string;
+  from: string; // gamecc username
+  to: string; // gamecc username
   status: "pending" | "accepted" | "declined" | "cancelled";
   createdAt: Date;
   updatedAt: Date;
@@ -27,31 +27,59 @@ export interface FriendRequest {
 
 export interface Friend {
   _id?: ObjectId;
-  user1: string; // steamid
-  user2: string; // steamid
+  user1: string; // gamecc username
+  user2: string; // gamecc username
   since: Date;
   nickname1?: string; // nickname user1 gives user2
   nickname2?: string; // nickname user2 gives user1
-  blockedBy?: string; // steamid of blocker
+  blockedBy?: string; // username of blocker
   ignoreUntil1?: Date; // user1 ignores user2 until
   ignoreUntil2?: Date; // user2 ignores user1 until
 }
 
 // Send a friend request
 export async function sendFriendRequest(from: string, to: string) {
+  const isSteamId = (id: string) => /^\d+$/.test(id) || id.startsWith("STEAM_");
+  if (isSteamId(to)) {
+    throw new Error("FRIEND_REQUEST_USE_USERNAME");
+  }
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(to)) {
+    throw new Error("FRIEND_REQUEST_INVALID_USERNAME_FORMAT");
+  }
+  if (from === to) {
+    throw new Error("FRIEND_REQUEST_SELF_NOT_ALLOWED");
+  }
   const client = await ensureConnected();
+  const userExists = await client
+    .db("gamecc")
+    .collection("users")
+    .findOne({ username: to });
+  if (!userExists) {
+    throw new Error("FRIEND_REQUEST_USER_NOT_FOUND");
+  }
   const collection = client
     .db("gamecc")
     .collection<FriendRequest>("friend_requests");
-  const now = new Date();
   const existing = await collection.findOne({
-    from,
-    to,
-    status: "pending",
+    $or: [
+      { from, to, status: "pending" },
+      { from: to, to: from, status: "pending" },
+    ],
   });
   if (existing) {
     throw new Error("DUPLICATE_FRIEND_REQUEST");
   }
+  const friendsCollection = client.db("gamecc").collection("friends");
+  const alreadyFriends = await friendsCollection.findOne({
+    $or: [
+      { user1: from, user2: to },
+      { user1: to, user2: from },
+    ],
+  });
+  if (alreadyFriends) {
+    throw new Error("FRIEND_REQUEST_ALREADY_FRIENDS");
+  }
+  const now = new Date();
   try {
     await collection.insertOne({
       from,
@@ -181,24 +209,24 @@ export async function setFriendNickname(
   );
 }
 
-// Get all friends for a user
-export async function getFriends(steamid: string) {
+// Get all friends for a user (by username)
+export async function getFriends(username: string) {
   const client = await ensureConnected();
   const collection = client.db("gamecc").collection<Friend>("friends");
   return collection
-    .find({ $or: [{ user1: steamid }, { user2: steamid }] })
+    .find({ $or: [{ user1: username }, { user2: username }] })
     .toArray();
 }
 
-// Get all friend requests for a user
-export async function getFriendRequests(steamid: string) {
+// Get all friend requests for a user (by username)
+export async function getFriendRequests(username: string) {
   const client = await ensureConnected();
   const collection = client
     .db("gamecc")
     .collection<FriendRequest>("friend_requests");
   return collection
     .find({
-      $or: [{ from: steamid }, { to: steamid }],
+      $or: [{ from: username }, { to: username }],
       status: { $ne: "cancelled" },
     })
     .toArray();
