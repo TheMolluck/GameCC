@@ -4,9 +4,8 @@ import type { MiddlewareFunction } from "react-router";
 import type { MetaFunction } from "react-router";
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
-import { deleteUserAndGames } from "~/.server/db/db";
-import { destroySession } from "../.server/sessions";
 import { getUsername } from "~/.server/db/username";
+import { SteamAPI } from "~/.server/steamapi";
 import type { Route } from "./+types/account";
 import { isUsernameAvailable, setUsername } from "~/.server/db/username";
 
@@ -19,11 +18,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // Handle account deletion
   if (formData.get("_action") === "delete-account") {
+    const { deleteUserAndGames } = await import("~/.server/db/db");
     await deleteUserAndGames(user);
     const cookieHeader = request.headers.get("cookie");
-    const session = await (
-      await import("../.server/sessions")
-    ).getSession(cookieHeader);
+    const { getSession, destroySession } = await import("../.server/sessions");
+    const session = await getSession(cookieHeader);
     const cookie = await destroySession(session);
     throw redirect("/", { headers: { "Set-Cookie": cookie } });
   }
@@ -38,6 +37,41 @@ export async function action({ request, context }: Route.ActionArgs) {
       error: "Username can only contain letters, numbers, and underscores.",
     };
   }
+  // Reserved words
+  const reservedWords = [
+    "admin",
+    "root",
+    "system",
+    "null",
+    "undefined",
+    "user",
+    "support",
+    "moderator",
+    "mod",
+    "gamecc",
+    "api",
+    "account",
+    "friend",
+    "friends",
+    "library",
+    "compare",
+    "sign-in",
+    "sign-out",
+    "home",
+    "not-found",
+    "test",
+    "owner",
+    "bot",
+    "server",
+    "staff",
+    "me",
+    "you",
+    "all",
+    "everyone",
+  ];
+  if (reservedWords.includes(username.toLowerCase())) {
+    return { error: "That username is reserved. Please choose another." };
+  }
   const available = await isUsernameAvailable(username);
   if (!available) {
     return { error: "Username is already taken." };
@@ -49,12 +83,21 @@ export async function action({ request, context }: Route.ActionArgs) {
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
   if (!user) {
-    return { username: null, isNewUser: true };
+    return { username: null, isNewUser: true, steamProfile: null };
   }
   const username = await getUsername(user);
+  // Fetch Steam profile
+  let steamProfile = null;
+  try {
+    const api = new SteamAPI(process.env.VITE_STEAM_API_KEY || "");
+    steamProfile = await api.getUserSummary(user);
+  } catch {
+    // ignore error, fallback to null
+  }
   return {
     username: username ?? null,
     isNewUser: !username,
+    steamProfile,
   };
 }
 
@@ -101,13 +144,23 @@ export default function Account() {
   const loading = fetcher.state === "submitting";
 
   // Linked accounts (only Steam for now)
-  const linkedAccounts = [
-    {
-      provider: "Steam",
-      id: "STEAM_0:1:12345678",
-      avatar: "/img/steam-avatar.png",
-    },
-  ];
+  type SteamProfile = {
+    steamid: string;
+    avatar: string;
+    avatarfull?: string;
+  };
+  const { steamProfile } = useLoaderData() as {
+    steamProfile: SteamProfile | null;
+  };
+  const linkedAccounts = steamProfile
+    ? [
+        {
+          provider: "Steam",
+          id: steamProfile.steamid,
+          avatar: steamProfile.avatarfull || steamProfile.avatar,
+        },
+      ]
+    : [];
 
   return (
     <main className="max-w-2xl mx-auto p-6 mt-8 bg-slate-900 rounded-lg shadow-lg text-slate-100">
@@ -232,7 +285,7 @@ export default function Account() {
                 }))
               }
             />
-            Accept friend requests
+            Allow friend requests
           </label>
           <label className="flex items-center gap-2">
             <span>Who can message you?</span>

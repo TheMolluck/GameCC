@@ -14,7 +14,7 @@ import { userContext } from "~/context";
 import { getUsername } from "~/.server/db/username";
 import { useNavigation } from "react-router";
 import { Spinner } from "./content/spinner";
-import Navbar from "./routes/navbar";
+import { Navbar } from "./routes/navbar";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -60,7 +60,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user, userDisplayName } = loaderData;
+  const { userDisplayName } = loaderData;
   const navigation = useNavigation();
   return (
     <>

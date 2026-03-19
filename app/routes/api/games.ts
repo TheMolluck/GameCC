@@ -93,6 +93,7 @@ export const loader: LoaderFunction = async ({ request }) => {
     const api = new SteamAPI(import.meta.env.VITE_STEAM_API_KEY as string);
     games = await api.getUserOwnedGames(userId);
     if (games) {
+      await storeSteamGames(userId, games);
       cache.set(cacheKey, games);
       return new Response(JSON.stringify({ games }), {
         headers: { "Content-Type": "application/json" },

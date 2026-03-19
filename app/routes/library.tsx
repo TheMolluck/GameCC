@@ -5,6 +5,131 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { ReturnToTopButton } from "../utils/ReturnToTopButton";
+// List layout component
+function GameList({
+  games,
+  gameDetails,
+  visibleCount,
+  onRowClick,
+}: {
+  games: SteamGame[];
+  gameDetails: Record<number, SteamGameDetails | null>;
+  visibleCount: number;
+  onRowClick: (appid: number) => void;
+}) {
+  // Helper to format playtime
+  const formatTime = (minutes: number): string => {
+    if (!minutes) return "-";
+    if (minutes < 60) return `${Math.round(minutes)}m`;
+    if (minutes < 1440) return `${Math.round(minutes / 60)}h`;
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.round((minutes % 1440) / 60);
+    return `${days}d${hours > 0 ? ` ${hours}h` : ""}`;
+  };
+
+  const controllerIcon = (
+    <svg
+      className="inline w-5 h-5 text-emerald-400"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 0h6m-6 0a2 2 0 01-2-2v-2a6 6 0 1112 0v2a2 2 0 01-2 2m-6 0v2a2 2 0 002 2h2a2 2 0 002-2v-2"
+      />
+    </svg>
+  );
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <table className="min-w-full table-auto border-separate border-spacing-y-2">
+        <thead>
+          <tr className="bg-slate-900 text-emerald-300 text-xs md:text-sm">
+            <th className="px-2 py-2 text-left">Game</th>
+            <th className="px-2 py-2 text-left hidden sm:table-cell">
+              Developer
+            </th>
+            <th className="px-2 py-2 text-left hidden md:table-cell">
+              Publisher
+            </th>
+            <th className="px-2 py-2 text-left hidden lg:table-cell">Genres</th>
+            <th className="px-2 py-2 text-left hidden xl:table-cell">
+              Controller
+            </th>
+            <th className="px-2 py-2 text-left">Play Time</th>
+            <th className="px-2 py-2 text-left hidden sm:table-cell">
+              Library
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {games.slice(0, visibleCount).map((game) => {
+            const details = gameDetails[game.appid];
+            return (
+              <tr
+                key={game.appid}
+                data-appid={game.appid}
+                className="bg-slate-800 hover:bg-emerald-900/20 cursor-pointer transition group"
+                onClick={() => onRowClick(game.appid)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ")
+                    onRowClick(game.appid);
+                }}
+                aria-label={`View details for ${details?.name || game.name}`}
+              >
+                <td className="flex items-center gap-3 px-2 py-2">
+                  {/* Capsule image */}
+                  {details?.capsule_image ? (
+                    <img
+                      src={details.capsule_image}
+                      alt={game.name}
+                      className="w-16 h-8 object-cover rounded shadow border border-slate-700"
+                    />
+                  ) : (
+                    <div className="w-16 h-8 bg-gray-700 rounded" />
+                  )}
+                  <span className="font-semibold text-emerald-100 line-clamp-1">
+                    {details?.name || game.name}
+                  </span>
+                </td>
+                <td className="px-2 py-2 hidden sm:table-cell text-xs">
+                  {details?.developers?.join(", ") || "-"}
+                </td>
+                <td className="px-2 py-2 hidden md:table-cell text-xs">
+                  {details?.publishers?.join(", ") || "-"}
+                </td>
+                <td className="px-2 py-2 hidden lg:table-cell text-xs">
+                  {details?.genres?.map((g) => g.description).join(", ") || "-"}
+                </td>
+                <td className="px-2 py-2 hidden xl:table-cell text-xs">
+                  {details?.controller_support ? (
+                    <span className="flex items-center gap-1">
+                      {controllerIcon}{" "}
+                      <span className="ml-1">{details.controller_support}</span>
+                    </span>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="px-2 py-2 text-xs">
+                  {formatTime(game.playtime_forever)}
+                </td>
+                <td className="px-2 py-2 hidden sm:table-cell text-xs">
+                  Steam
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 import { redirect, NavLink } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/library";
@@ -179,7 +304,6 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
         if (data.games && data.games.length > 0) {
           setGames(data.games);
         } else {
-          // No games in DB, trigger backend fetch via POST
           try {
             const postRes = await fetch("/api/games", {
               method: "POST",
@@ -191,7 +315,6 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
               setGames([]);
               return;
             }
-            // Reload from backend
             const reload = await fetch(`/api/games?userid=${user}`);
             const reloadData = await reload.json();
             setGames(reloadData.games || []);
@@ -210,7 +333,7 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
       });
   }, [user]);
 
-  // State for filter, sort, and infinite scroll
+  // State for filter, sort, infinite scroll, and layout
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [showGenreDropdown, setShowGenreDropdown] = useState(false);
@@ -218,6 +341,24 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   const [sortType, setSortType] = useState<SortType>("name-asc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
+  const [layout, setLayout] = useState<"grid" | "list">(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem("libraryLayout");
+      if (saved === "grid" || saved === "list") return saved;
+    }
+    return "grid";
+  });
+
+  // Persist layout mode to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("libraryLayout", layout);
+    }
+  }, [layout]);
+  // Handle row click for list layout
+  const handleRowClick = (appid: number) => {
+    window.location.href = `/game/${appid}`;
+  };
 
   const genreDropdownRef = useRef<HTMLDivElement | null>(null);
   const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -292,7 +433,7 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
           // Details
           if (gameDetails[appid] === undefined && !loadingDetails[appid]) {
             setLoadingDetails((ld) => ({ ...ld, [appid]: true }));
-            fetch(`/api/game-details?appid=${appid}`)
+            fetch(`/api/game-details?appid=${appid}&userid=${user}`)
               .then((res) => res.json())
               .then((result) => {
                 if (result.details) {
@@ -399,149 +540,199 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
       <h1 className="text-3xl font-bold mb-6 text-emerald-400">
         Your Games Library
       </h1>
-      <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-emerald-700/30 flex flex-wrap gap-4 items-center py-4 mb-8 shadow-lg rounded-b-xl">
-        <div className="flex gap-4 items-center pl-6">
-          <div className="relative" ref={genreDropdownRef}>
+      <div>
+        <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-emerald-700/30 flex flex-wrap gap-4 items-center py-4 mb-8 shadow-lg rounded-b-xl">
+          {/* Layout Switch Buttons */}
+          <div className="flex gap-2 items-center pl-2">
             <button
-              className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
-              onClick={() => setShowGenreDropdown((v) => !v)}
-              type="button"
+              className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "grid" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
+              onClick={() => setLayout("grid")}
+              aria-label="Grid layout"
             >
-              {selectedGenres.length === 0
-                ? "All Genres"
-                : selectedGenres.length === 1
-                  ? selectedGenres[0]
-                  : "Custom Genres"}
+              Grid
             </button>
-            {showGenreDropdown && (
-              <div
-                className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
-                style={{ minWidth: "180px" }}
-              >
-                {allGenres.length === 0 ? (
-                  <span className="text-xs text-gray-400">No genres found</span>
-                ) : (
-                  allGenres.map((g) => (
-                    <label
-                      key={g}
-                      className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
-                    >
-                      <input
-                        type="checkbox"
-                        className="accent-emerald-500 w-4 h-4 rounded"
-                        checked={selectedGenres.includes(g)}
-                        onChange={() =>
-                          setSelectedGenres(
-                            selectedGenres.includes(g)
-                              ? selectedGenres.filter((x) => x !== g)
-                              : [...selectedGenres, g],
-                          )
-                        }
-                      />
-                      <span className="text-xs text-emerald-200">{g}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-          <div className="relative" ref={categoryDropdownRef}>
             <button
-              className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
-              onClick={() => setShowCategoryDropdown((v) => !v)}
-              type="button"
+              className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "list" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
+              onClick={() => setLayout("list")}
+              aria-label="List layout"
             >
-              {selectedCategories.length === 0
-                ? "All Categories"
-                : selectedCategories.length === 1
-                  ? selectedCategories[0]
-                  : "Custom Categories"}
+              List
             </button>
-            {showCategoryDropdown && (
-              <div
-                className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
-                style={{ minWidth: "180px" }}
+          </div>
+          <div className="flex gap-4 items-center pl-6 flex-1">
+            <div className="relative" ref={genreDropdownRef}>
+              <button
+                className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
+                onClick={() => setShowGenreDropdown((v) => !v)}
+                type="button"
               >
-                {allCategories.length === 0 ? (
-                  <span className="text-xs text-gray-400">
-                    No categories found
-                  </span>
-                ) : (
-                  allCategories.map((c) => (
-                    <label
-                      key={c}
-                      className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
-                    >
-                      <input
-                        type="checkbox"
-                        className="accent-emerald-500 w-4 h-4 rounded"
-                        checked={selectedCategories.includes(c)}
-                        onChange={() =>
-                          setSelectedCategories(
-                            selectedCategories.includes(c)
-                              ? selectedCategories.filter((x) => x !== c)
-                              : [...selectedCategories, c],
-                          )
-                        }
-                      />
-                      <span className="text-xs text-emerald-200">{c}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
+                {selectedGenres.length === 0
+                  ? "All Genres"
+                  : selectedGenres.length === 1
+                    ? selectedGenres[0]
+                    : "Custom Genres"}
+              </button>
+              {showGenreDropdown && (
+                <div
+                  className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
+                  style={{ minWidth: "180px" }}
+                >
+                  {allGenres.length === 0 ? (
+                    <span className="text-xs text-gray-400">
+                      No genres found
+                    </span>
+                  ) : (
+                    allGenres.map((g) => (
+                      <label
+                        key={g}
+                        className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-emerald-500 w-4 h-4 rounded"
+                          checked={selectedGenres.includes(g)}
+                          onChange={() =>
+                            setSelectedGenres(
+                              selectedGenres.includes(g)
+                                ? selectedGenres.filter((x) => x !== g)
+                                : [...selectedGenres, g],
+                            )
+                          }
+                        />
+                        <span className="text-xs text-emerald-200">{g}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="relative" ref={categoryDropdownRef}>
+              <button
+                className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
+                onClick={() => setShowCategoryDropdown((v) => !v)}
+                type="button"
+              >
+                {selectedCategories.length === 0
+                  ? "All Categories"
+                  : selectedCategories.length === 1
+                    ? selectedCategories[0]
+                    : "Custom Categories"}
+              </button>
+              {showCategoryDropdown && (
+                <div
+                  className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
+                  style={{ minWidth: "180px" }}
+                >
+                  {allCategories.length === 0 ? (
+                    <span className="text-xs text-gray-400">
+                      No categories found
+                    </span>
+                  ) : (
+                    allCategories.map((c) => (
+                      <label
+                        key={c}
+                        className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-emerald-500 w-4 h-4 rounded"
+                          checked={selectedCategories.includes(c)}
+                          onChange={() =>
+                            setSelectedCategories(
+                              selectedCategories.includes(c)
+                                ? selectedCategories.filter((x) => x !== c)
+                                : [...selectedCategories, c],
+                            )
+                          }
+                        />
+                        <span className="text-xs text-emerald-200">{c}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-row gap-2 items-center ml-auto pr-6">
+            <label className="text-sm font-semibold text-emerald-300 mr-2">
+              Sort By
+            </label>
+            <select
+              className="bg-slate-900 border border-emerald-700/40 rounded-lg px-3 py-2 text-emerald-200"
+              value={sortType}
+              onChange={(e) => setSortType(e.target.value as SortType)}
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="playtime-desc">Playtime (High-Low)</option>
+              <option value="playtime-asc">Playtime (Low-High)</option>
+              <option value="last-played">Last Played</option>
+            </select>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2 pr-6">
-          <label className="text-sm font-semibold text-emerald-300 mr-2">
-            Sort By
-          </label>
-          <select
-            className="bg-slate-900 border border-emerald-700/40 rounded-lg px-3 py-2 text-emerald-200"
-            value={sortType}
-            onChange={(e) => setSortType(e.target.value as SortType)}
-          >
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="playtime-desc">Playtime (High-Low)</option>
-            <option value="playtime-asc">Playtime (Low-High)</option>
-            <option value="last-played">Last Played</option>
-          </select>
-        </div>
-      </div>
-      {gamesLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-          {[...Array(PAGE_SIZE)].map((_, idx) => (
-            <div
-              key={idx}
-              className="h-80 rounded-xl bg-slate-800 animate-pulse"
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-          {filteredGames.length === 0 ? (
-            <div className="col-span-full text-center text-emerald-300 text-lg py-12">
-              No games found.
+
+        {/* Main content: grid/list loading and display */}
+        {gamesLoading ? (
+          layout === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+              {[...Array(PAGE_SIZE)].map((_, idx) => (
+                <div
+                  key={idx}
+                  className="h-80 rounded-xl bg-slate-800 animate-pulse"
+                />
+              ))}
             </div>
           ) : (
-            filteredGames
-              .slice(0, visibleCount)
-              .map((game: SteamGame) => (
-                <GameCard
-                  key={game.appid}
-                  game={game}
-                  details={gameDetails[game.appid] || null}
-                  grids={gridsByAppid[game.appid] || []}
-                  loadingDetails={!!loadingDetails[game.appid]}
-                  loadingGrids={!!loadingGrids[game.appid]}
+            <div className="w-full">
+              {[...Array(PAGE_SIZE)].map((_, idx) => (
+                <div
+                  key={idx}
+                  className="h-12 rounded bg-slate-800 animate-pulse mb-2"
                 />
-              ))
-          )}
-        </div>
-      )}
-      <div ref={sentinelRef} />
-      {isLoading && <Spinner />}
+              ))}
+            </div>
+          )
+        ) : layout === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+            {filteredGames.length === 0 ? (
+              <div className="col-span-full text-center text-emerald-300 text-lg py-12">
+                No games found.
+              </div>
+            ) : (
+              filteredGames
+                .slice(0, visibleCount)
+                .map((game: SteamGame) => (
+                  <GameCard
+                    key={game.appid}
+                    game={game}
+                    details={gameDetails[game.appid] || null}
+                    grids={gridsByAppid[game.appid] || []}
+                    loadingDetails={!!loadingDetails[game.appid]}
+                    loadingGrids={!!loadingGrids[game.appid]}
+                  />
+                ))
+            )}
+          </div>
+        ) : filteredGames.length === 0 ? (
+          <div className="text-center text-emerald-300 text-lg py-12">
+            No games found.
+          </div>
+        ) : (
+          <GameList
+            games={filteredGames}
+            gameDetails={gameDetails}
+            visibleCount={visibleCount}
+            onRowClick={handleRowClick}
+          />
+        )}
+
+        {/* Infinite scroll sentinel and spinner for both layouts */}
+        <div ref={sentinelRef} />
+        {isLoading && <Spinner />}
+
+        {/* Return to Top Button */}
+        <ReturnToTopButton />
+      </div>
     </div>
   );
 }
