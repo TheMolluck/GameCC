@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink, redirect } from "react-router";
+import { redirect } from "react-router";
 import type { Route } from "./+types/sign-in";
 import { getUserFromSession } from "../.server/auth";
 import { userContext } from "~/context";
