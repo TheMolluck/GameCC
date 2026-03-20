@@ -5,6 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { getFuzzyFilteredGames } from "../utils/fuzzyGameSearch";
 import { ReturnToTopButton } from "../utils/ReturnToTopButton";
 // List layout component
 function GameList({
@@ -46,22 +47,50 @@ function GameList({
 
   return (
     <div className="w-full overflow-x-auto">
-      <table className="min-w-full table-auto border-separate border-spacing-y-2">
+      <table
+        className="min-w-full table-auto border-separate border-spacing-y-2"
+        role="table"
+        aria-label="Game library"
+      >
         <thead>
-          <tr className="bg-slate-900 text-emerald-300 text-xs md:text-sm">
-            <th className="px-2 py-2 text-left">Game</th>
-            <th className="px-2 py-2 text-left hidden sm:table-cell">
+          <tr
+            className="bg-slate-900 text-emerald-300 text-xs md:text-sm"
+            role="row"
+          >
+            <th className="px-2 py-2 text-left" scope="col">
+              Game
+            </th>
+            <th
+              className="px-2 py-2 text-left hidden sm:table-cell"
+              scope="col"
+            >
               Developer
             </th>
-            <th className="px-2 py-2 text-left hidden md:table-cell">
+            <th
+              className="px-2 py-2 text-left hidden md:table-cell"
+              scope="col"
+            >
               Publisher
             </th>
-            <th className="px-2 py-2 text-left hidden lg:table-cell">Genres</th>
-            <th className="px-2 py-2 text-left hidden xl:table-cell">
+            <th
+              className="px-2 py-2 text-left hidden lg:table-cell"
+              scope="col"
+            >
+              Genres
+            </th>
+            <th
+              className="px-2 py-2 text-left hidden xl:table-cell"
+              scope="col"
+            >
               Controller
             </th>
-            <th className="px-2 py-2 text-left">Play Time</th>
-            <th className="px-2 py-2 text-left hidden sm:table-cell">
+            <th className="px-2 py-2 text-left" scope="col">
+              Play Time
+            </th>
+            <th
+              className="px-2 py-2 text-left hidden sm:table-cell"
+              scope="col"
+            >
               Library
             </th>
           </tr>
@@ -73,7 +102,7 @@ function GameList({
               <tr
                 key={game.appid}
                 data-appid={game.appid}
-                className="bg-slate-800 hover:bg-emerald-900/20 cursor-pointer transition group"
+                className="bg-slate-800 hover:bg-emerald-900/20 cursor-pointer transition group focus-within:ring-2 focus-within:ring-emerald-400"
                 onClick={() => onRowClick(game.appid)}
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -81,8 +110,9 @@ function GameList({
                     onRowClick(game.appid);
                 }}
                 aria-label={`View details for ${details?.name || game.name}`}
+                role="row"
               >
-                <td className="flex items-center gap-3 px-2 py-2">
+                <td className="flex items-center gap-3 px-2 py-2" role="cell">
                   {/* Capsule image */}
                   {details?.capsule_image ? (
                     <img
@@ -97,16 +127,28 @@ function GameList({
                     {details?.name || game.name}
                   </span>
                 </td>
-                <td className="px-2 py-2 hidden sm:table-cell text-xs">
+                <td
+                  className="px-2 py-2 hidden sm:table-cell text-xs"
+                  role="cell"
+                >
                   {details?.developers?.join(", ") || "-"}
                 </td>
-                <td className="px-2 py-2 hidden md:table-cell text-xs">
+                <td
+                  className="px-2 py-2 hidden md:table-cell text-xs"
+                  role="cell"
+                >
                   {details?.publishers?.join(", ") || "-"}
                 </td>
-                <td className="px-2 py-2 hidden lg:table-cell text-xs">
+                <td
+                  className="px-2 py-2 hidden lg:table-cell text-xs"
+                  role="cell"
+                >
                   {details?.genres?.map((g) => g.description).join(", ") || "-"}
                 </td>
-                <td className="px-2 py-2 hidden xl:table-cell text-xs">
+                <td
+                  className="px-2 py-2 hidden xl:table-cell text-xs"
+                  role="cell"
+                >
                   {details?.controller_support ? (
                     <span className="flex items-center gap-1">
                       {controllerIcon}{" "}
@@ -116,10 +158,13 @@ function GameList({
                     "-"
                   )}
                 </td>
-                <td className="px-2 py-2 text-xs">
+                <td className="px-2 py-2 text-xs" role="cell">
                   {formatTime(game.playtime_forever)}
                 </td>
-                <td className="px-2 py-2 hidden sm:table-cell text-xs">
+                <td
+                  className="px-2 py-2 hidden sm:table-cell text-xs"
+                  role="cell"
+                >
                   Steam
                 </td>
               </tr>
@@ -341,17 +386,27 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   const [sortType, setSortType] = useState<SortType>("name-asc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
-  const [layout, setLayout] = useState<"grid" | "list">(() => {
+  const [layout, setLayout] = useState<"grid" | "list" | undefined>(undefined);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [librarySource, setLibrarySource] = useState("All");
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+
+  // On mount, read layout from localStorage
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem("libraryLayout");
-      if (saved === "grid" || saved === "list") return saved;
+      if (saved === "grid" || saved === "list") {
+        setLayout(saved);
+      } else {
+        setLayout("grid");
+      }
     }
-    return "grid";
-  });
+  }, []);
 
   // Persist layout mode to localStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && layout) {
       window.localStorage.setItem("libraryLayout", layout);
     }
   }, [layout]);
@@ -365,7 +420,16 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const filteredGames = useMemo(() => {
-    let filtered = games;
+    // Fuzzy search for games
+    let filtered = getFuzzyFilteredGames({
+      games,
+      gameDetails,
+      searchTerm,
+      developerTerm: "",
+      publisherTerm: "",
+      librarySource,
+    });
+    // Genre/category filter
     if (selectedGenres.length > 0) {
       filtered = filtered.filter((game: SteamGame) => {
         const details = gameDetails[game.appid];
@@ -401,7 +465,15 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
           return 0;
       }
     });
-  }, [games, gameDetails, selectedGenres, selectedCategories, sortType]);
+  }, [
+    games,
+    gameDetails,
+    selectedGenres,
+    selectedCategories,
+    sortType,
+    searchTerm,
+    librarySource,
+  ]);
 
   // Collect all genres and categories from gameDetails
   const allGenres = useMemo(() => {
@@ -541,133 +613,252 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
         Your Games Library
       </h1>
       <div>
-        <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-emerald-700/30 flex flex-wrap gap-4 items-center py-4 mb-8 shadow-lg rounded-b-xl">
-          {/* Layout Switch Buttons */}
-          <div className="flex gap-2 items-center pl-2">
+        <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-emerald-700/30 shadow-lg rounded-b-xl mb-8">
+          <div className="flex flex-wrap gap-4 items-center py-4 px-2 lg:px-6">
+            {/* Grid/List Toggle & Search */}
+            <div className="flex gap-2 items-center">
+              {layout && (
+                <>
+                  <button
+                    className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "grid" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
+                    onClick={() => setLayout("grid")}
+                    aria-label="Grid layout"
+                  >
+                    Grid
+                  </button>
+                  <button
+                    className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "list" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
+                    onClick={() => setLayout("list")}
+                    aria-label="List layout"
+                  >
+                    List
+                  </button>
+                </>
+              )}
+              <input
+                type="text"
+                className="ml-4 px-3 py-2 rounded-lg border border-emerald-700/40 bg-slate-900 text-emerald-200 focus:outline-none focus:border-emerald-400 transition-all w-40 sm:w-48"
+                placeholder="Search games..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search games"
+                style={{ marginLeft: 16 }}
+              />
+            </div>
             <button
-              className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "grid" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
-              onClick={() => setLayout("grid")}
-              aria-label="Grid layout"
+              className="ml-2 flex items-center justify-center w-8 h-8 rounded-full border border-emerald-700/40 bg-slate-900 text-emerald-200 md:hidden transition hover:border-emerald-400"
+              aria-label={mobileOptionsOpen ? "Hide options" : "Show options"}
+              onClick={() => setMobileOptionsOpen((v) => !v)}
+              type="button"
             >
-              Grid
-            </button>
-            <button
-              className={`px-3 py-2 rounded-lg font-semibold border transition-all ${layout === "list" ? "bg-emerald-600 text-white border-emerald-400" : "bg-slate-900 text-emerald-200 border-emerald-700/40 hover:border-emerald-400"}`}
-              onClick={() => setLayout("list")}
-              aria-label="List layout"
-            >
-              List
-            </button>
-          </div>
-          <div className="flex gap-4 items-center pl-6 flex-1">
-            <div className="relative" ref={genreDropdownRef}>
-              <button
-                className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
-                onClick={() => setShowGenreDropdown((v) => !v)}
-                type="button"
+              <svg
+                className={`w-5 h-5 transition-transform duration-200 ${mobileOptionsOpen ? "rotate-180" : "rotate-0"}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
               >
-                {selectedGenres.length === 0
-                  ? "All Genres"
-                  : selectedGenres.length === 1
-                    ? selectedGenres[0]
-                    : "Custom Genres"}
-              </button>
-              {showGenreDropdown && (
-                <div
-                  className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
-                  style={{ minWidth: "180px" }}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 9l6 6 6-6"
+                />
+              </svg>
+            </button>
+            <div className="hidden md:flex md:items-center md:gap-4 md:ml-4">
+              <div className="hidden lg:block relative" ref={genreDropdownRef}>
+                <button
+                  className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
+                  onClick={() => setShowGenreDropdown((v) => !v)}
+                  type="button"
                 >
-                  {allGenres.length === 0 ? (
-                    <span className="text-xs text-gray-400">
-                      No genres found
-                    </span>
-                  ) : (
-                    allGenres.map((g) => (
-                      <label
-                        key={g}
-                        className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-emerald-500 w-4 h-4 rounded"
-                          checked={selectedGenres.includes(g)}
-                          onChange={() =>
-                            setSelectedGenres(
-                              selectedGenres.includes(g)
-                                ? selectedGenres.filter((x) => x !== g)
-                                : [...selectedGenres, g],
-                            )
-                          }
-                        />
-                        <span className="text-xs text-emerald-200">{g}</span>
-                      </label>
-                    ))
+                  {selectedGenres.length === 0
+                    ? "All Genres"
+                    : selectedGenres.length === 1
+                      ? selectedGenres[0]
+                      : "Custom Genres"}
+                </button>
+                {showGenreDropdown && (
+                  <div
+                    className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
+                    style={{ minWidth: "180px" }}
+                  >
+                    {allGenres.length === 0 ? (
+                      <span className="text-xs text-gray-400">
+                        No genres found
+                      </span>
+                    ) : (
+                      allGenres.map((g) => (
+                        <label
+                          key={g}
+                          className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-emerald-500 w-4 h-4 rounded"
+                            checked={selectedGenres.includes(g)}
+                            onChange={() =>
+                              setSelectedGenres(
+                                selectedGenres.includes(g)
+                                  ? selectedGenres.filter((x) => x !== g)
+                                  : [...selectedGenres, g],
+                              )
+                            }
+                          />
+                          <span className="text-xs text-emerald-200">{g}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-row items-center gap-2">
+                <label className="text-sm font-semibold text-emerald-300">
+                  Sort By
+                </label>
+                <select
+                  className="bg-slate-900 border border-emerald-700/40 rounded-lg px-3 py-2 text-emerald-200"
+                  value={sortType}
+                  onChange={(e) => setSortType(e.target.value as SortType)}
+                >
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="playtime-desc">Playtime (High-Low)</option>
+                  <option value="playtime-asc">Playtime (Low-High)</option>
+                  <option value="last-played">Last Played</option>
+                </select>
+              </div>
+            </div>
+            <div
+              className={`w-full flex-col gap-4 mt-4 md:mt-0 md:w-auto md:flex-row md:flex items-center transition-all duration-300 ${mobileOptionsOpen ? "flex" : "hidden"} md:flex ${mobileOptionsOpen ? "items-center justify-center text-center" : ""}`}
+              style={{
+                borderTop: mobileOptionsOpen
+                  ? "1px solid #134e4a33"
+                  : undefined,
+              }}
+            >
+              <select
+                className="px-3 py-2 rounded-lg border border-emerald-700/40 bg-slate-900 text-emerald-200 focus:outline-none focus:border-emerald-400 transition-all mt-2 lg:mt-0"
+                value={librarySource}
+                onChange={(e) => setLibrarySource(e.target.value)}
+                aria-label="Library source"
+              >
+                <option value="All">All Libraries</option>
+                <option value="Steam">Steam</option>
+              </select>
+              <div className="relative mt-2 lg:mt-0" ref={categoryDropdownRef}>
+                <button
+                  className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
+                  onClick={() => setShowCategoryDropdown((v) => !v)}
+                  type="button"
+                >
+                  {selectedCategories.length === 0
+                    ? "All Categories"
+                    : selectedCategories.length === 1
+                      ? selectedCategories[0]
+                      : "Custom Categories"}
+                </button>
+                {showCategoryDropdown && (
+                  <div
+                    className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
+                    style={{ minWidth: "180px" }}
+                  >
+                    {allCategories.length === 0 ? (
+                      <span className="text-xs text-gray-400">
+                        No categories found
+                      </span>
+                    ) : (
+                      allCategories.map((c) => (
+                        <label
+                          key={c}
+                          className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-emerald-500 w-4 h-4 rounded"
+                            checked={selectedCategories.includes(c)}
+                            onChange={() =>
+                              setSelectedCategories(
+                                selectedCategories.includes(c)
+                                  ? selectedCategories.filter((x) => x !== c)
+                                  : [...selectedCategories, c],
+                              )
+                            }
+                          />
+                          <span className="text-xs text-emerald-200">{c}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-4 w-full md:hidden lg:hidden">
+                <div className="relative" ref={genreDropdownRef}>
+                  <button
+                    className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
+                    onClick={() => setShowGenreDropdown((v) => !v)}
+                    type="button"
+                  >
+                    {selectedGenres.length === 0
+                      ? "All Genres"
+                      : selectedGenres.length === 1
+                        ? selectedGenres[0]
+                        : "Custom Genres"}
+                  </button>
+                  {showGenreDropdown && (
+                    <div
+                      className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
+                      style={{ minWidth: "180px" }}
+                    >
+                      {allGenres.length === 0 ? (
+                        <span className="text-xs text-gray-400">
+                          No genres found
+                        </span>
+                      ) : (
+                        allGenres.map((g) => (
+                          <label
+                            key={g}
+                            className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
+                          >
+                            <input
+                              type="checkbox"
+                              className="accent-emerald-500 w-4 h-4 rounded"
+                              checked={selectedGenres.includes(g)}
+                              onChange={() =>
+                                setSelectedGenres(
+                                  selectedGenres.includes(g)
+                                    ? selectedGenres.filter((x) => x !== g)
+                                    : [...selectedGenres, g],
+                                )
+                              }
+                            />
+                            <span className="text-xs text-emerald-200">
+                              {g}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-            <div className="relative" ref={categoryDropdownRef}>
-              <button
-                className="bg-slate-900 border border-emerald-700/40 rounded-lg px-4 py-2 text-emerald-200 min-w-45 text-left font-semibold shadow hover:border-emerald-400 transition-all"
-                onClick={() => setShowCategoryDropdown((v) => !v)}
-                type="button"
-              >
-                {selectedCategories.length === 0
-                  ? "All Categories"
-                  : selectedCategories.length === 1
-                    ? selectedCategories[0]
-                    : "Custom Categories"}
-              </button>
-              {showCategoryDropdown && (
-                <div
-                  className="absolute z-20 left-0 mt-2 w-64 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg p-4 flex flex-col gap-2"
-                  style={{ minWidth: "180px" }}
-                >
-                  {allCategories.length === 0 ? (
-                    <span className="text-xs text-gray-400">
-                      No categories found
-                    </span>
-                  ) : (
-                    allCategories.map((c) => (
-                      <label
-                        key={c}
-                        className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-emerald-900/30"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-emerald-500 w-4 h-4 rounded"
-                          checked={selectedCategories.includes(c)}
-                          onChange={() =>
-                            setSelectedCategories(
-                              selectedCategories.includes(c)
-                                ? selectedCategories.filter((x) => x !== c)
-                                : [...selectedCategories, c],
-                            )
-                          }
-                        />
-                        <span className="text-xs text-emerald-200">{c}</span>
-                      </label>
-                    ))
-                  )}
+                <div className="flex flex-col items-center gap-1 mt-2 lg:mt-0 lg:flex-row lg:items-center lg:gap-2 md:hidden">
+                  <label className="text-sm font-semibold text-emerald-300 lg:mr-2 mb-1 lg:mb-0 text-center w-full lg:w-auto lg:text-left">
+                    Sort By
+                  </label>
+                  <select
+                    className="bg-slate-900 border border-emerald-700/40 rounded-lg px-3 py-2 text-emerald-200"
+                    value={sortType}
+                    onChange={(e) => setSortType(e.target.value as SortType)}
+                  >
+                    <option value="name-asc">Name (A-Z)</option>
+                    <option value="name-desc">Name (Z-A)</option>
+                    <option value="playtime-desc">Playtime (High-Low)</option>
+                    <option value="playtime-asc">Playtime (Low-High)</option>
+                    <option value="last-played">Last Played</option>
+                  </select>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-          <div className="flex flex-row gap-2 items-center ml-auto pr-6">
-            <label className="text-sm font-semibold text-emerald-300 mr-2">
-              Sort By
-            </label>
-            <select
-              className="bg-slate-900 border border-emerald-700/40 rounded-lg px-3 py-2 text-emerald-200"
-              value={sortType}
-              onChange={(e) => setSortType(e.target.value as SortType)}
-            >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="playtime-desc">Playtime (High-Low)</option>
-              <option value="playtime-asc">Playtime (Low-High)</option>
-              <option value="last-played">Last Played</option>
-            </select>
           </div>
         </div>
 

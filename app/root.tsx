@@ -76,6 +76,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
   );
 }
 
+import React, { useState } from "react";
+
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let message = "Oops!";
   let details = "An unexpected error occurred.";
@@ -87,20 +89,50 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       error.status === 404
         ? "The requested page could not be found."
         : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
+  } else if (error && error instanceof Error) {
     details = error.message;
     stack = error.stack;
   }
 
+  const [showDetails, setShowDetails] = useState(false);
+
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-emerald-300 px-4">
+      <div className="max-w-md w-full text-center py-12 px-6 bg-slate-900 rounded-2xl shadow-lg border border-emerald-700/30">
+        <div className="text-7xl font-extrabold mb-4 text-emerald-400 drop-shadow-lg">
+          {message}
+        </div>
+        <h1 className="text-2xl md:text-3xl font-bold mb-2 text-emerald-300">
+          Something went wrong
+        </h1>
+        <p className="text-slate-300 mb-6">{details}</p>
+        <a
+          href="/library"
+          className="inline-block mt-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow transition-colors duration-200"
+        >
+          Return to Library
+        </a>
+        {stack && (
+          <div className="mt-6 text-left">
+            <button
+              onClick={() => setShowDetails((v) => !v)}
+              className="text-emerald-400 underline hover:text-emerald-300 focus:outline-none"
+              aria-expanded={showDetails}
+              aria-controls="error-details"
+            >
+              {showDetails ? "Hide error details" : "Show error details"}
+            </button>
+            {showDetails && (
+              <pre
+                id="error-details"
+                className="w-full mt-2 p-4 bg-slate-800 rounded text-left text-xs overflow-x-auto text-rose-300 border border-rose-700/30"
+              >
+                <code>{stack}</code>
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -128,7 +128,11 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
           to="/library"
           className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
         >
-          ← Back to library
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <span>←</span>
+            <span className="sm:inline hidden">Back to library</span>
+            <span className="inline sm:hidden text-xs">Library</span>
+          </span>
         </Link>
       </div>
     );
@@ -144,7 +148,8 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
           to="/library"
           className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
         >
-          ← Back to library
+          ← <span className="sm:inline hidden">Back to library</span>
+          <span className="inline sm:hidden">Library</span>
         </Link>
       </div>
     );
@@ -196,7 +201,8 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
               to="/library"
               className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
             >
-              ← Back to library
+              ← <span className="sm:inline hidden">Back to library</span>
+              <span className="inline sm:hidden">Library</span>
             </Link>
           </div>
         </div>
@@ -205,9 +211,182 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
       {/* Main Content */}
       <div className="relative bg-slate-900/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Sidebar - Details */}
-            <div className="lg:col-span-1 space-y-6">
+          {/* Responsive order: stats, about, screenshots, dev/pub, genres, categories, website, requirements */}
+          <div className="space-y-6 lg:hidden">
+            {/* Stats */}
+            <div className="bg-emerald-900/30 p-4 rounded-lg border border-emerald-700/40">
+              <h3 className="font-semibold mb-2 text-emerald-300">
+                Your Stats
+              </h3>
+              <p className="text-2xl font-bold text-emerald-400">
+                {game && typeof game.playtime_forever === "number"
+                  ? formatTime(game.playtime_forever / 60)
+                  : "-"}
+              </p>
+              <p className="text-sm text-emerald-200">Total playtime</p>
+            </div>
+            {/* About */}
+            <div>
+              <h2 className="text-2xl font-bold mb-4 text-emerald-300">
+                About
+              </h2>
+              <div
+                className="bg-slate-900 p-6 rounded-lg border border-emerald-700/20 h-96 overflow-y-auto prose max-w-none text-sm text-slate-100"
+                style={{
+                  scrollbarWidth: "thin",
+                  scrollbarColor: "#059669 #0f172a",
+                }}
+              >
+                {details?.detailed_description ? (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: details.detailed_description,
+                    }}
+                  />
+                ) : (
+                  <p>No description available.</p>
+                )}
+              </div>
+            </div>
+            {/* Screenshots */}
+            {details?.screenshots && details.screenshots.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-4 text-emerald-300">
+                  Screenshots
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {details.screenshots.slice(0, 9).map((screenshot, idx) => (
+                    <button
+                      key={screenshot.id}
+                      onClick={() => setSelectedScreenshot(idx)}
+                      className="relative group overflow-hidden rounded-lg border border-emerald-700/40 hover:border-emerald-400 transition cursor-pointer aspect-video"
+                    >
+                      <img
+                        src={screenshot.path_thumbnail}
+                        alt={`Screenshot ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Developers & Publishers */}
+            {(details?.developers || details?.publishers) && (
+              <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
+                {details?.developers && details.developers.length > 0 && (
+                  <div className="mb-3">
+                    <h4 className="text-sm font-medium text-emerald-200 mb-1">
+                      Developer{details.developers.length > 1 ? "s" : ""}
+                    </h4>
+                    <p className="text-sm text-slate-100">
+                      {details.developers.join(", ")}
+                    </p>
+                  </div>
+                )}
+                {details?.publishers && details.publishers.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-emerald-200 mb-1">
+                      Publisher{details.publishers.length > 1 ? "s" : ""}
+                    </h4>
+                    <p className="text-sm text-slate-100">
+                      {details.publishers.join(", ")}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Genres */}
+            {details?.genres && details.genres.length > 0 && (
+              <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
+                <h3 className="font-semibold mb-2 text-emerald-300">Genres</h3>
+                <div className="flex flex-wrap gap-2">
+                  {details.genres.map((genre) => (
+                    <span
+                      key={genre.id}
+                      className="inline-block bg-emerald-900 text-emerald-300 px-3 py-1 rounded-full text-xs"
+                    >
+                      {genre.description}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Categories */}
+            {details?.categories && details.categories.length > 0 && (
+              <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
+                <h3 className="font-semibold mb-2 text-emerald-300">
+                  Categories
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {details.categories.map((cat) => (
+                    <span
+                      key={cat.id}
+                      className="inline-block bg-emerald-900 text-emerald-300 px-3 py-1 rounded-full text-xs"
+                    >
+                      {cat.description}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Official Website */}
+            {details?.website && (
+              <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
+                <h3 className="font-semibold mb-2 text-emerald-300">
+                  Official Website
+                </h3>
+                <a
+                  href={details.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-400 hover:text-emerald-300 text-sm break-all"
+                >
+                  Visit
+                </a>
+              </div>
+            )}
+            {/* PC Requirements */}
+            {details?.pc_requirements &&
+              !Array.isArray(details.pc_requirements) && (
+                <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
+                  <h3 className="font-semibold mb-3 text-emerald-300">
+                    PC Requirements
+                  </h3>
+                  <div>
+                    <h4 className="text-sm font-medium mb-2 text-emerald-200">
+                      Minimum
+                    </h4>
+                    <div className="text-xs text-slate-100 space-y-1 mb-3">
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: details.pc_requirements.minimum ?? "",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {details.pc_requirements.recommended && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-emerald-200">
+                        Recommended
+                      </h4>
+                      <div className="text-xs text-slate-100 space-y-1">
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: details.pc_requirements.recommended,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+          </div>
+
+          {/* Large screen layout (unchanged) */}
+          <div className="hidden lg:grid grid-cols-3 gap-8">
+            <div className="col-span-1 space-y-6">
               {/* Time Played */}
               <div className="bg-emerald-900/30 p-4 rounded-lg border border-emerald-700/40">
                 <h3 className="font-semibold mb-2 text-emerald-300">
@@ -220,7 +399,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                 </p>
                 <p className="text-sm text-emerald-200">Total playtime</p>
               </div>
-
               {/* Controller Support */}
               {details?.controller_support && (
                 <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
@@ -232,7 +410,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   </p>
                 </div>
               )}
-
               {/* Game Website */}
               {details?.website && (
                 <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
@@ -249,7 +426,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   </a>
                 </div>
               )}
-
               {/* PC Requirements */}
               {details?.pc_requirements &&
                 !Array.isArray(details.pc_requirements) && (
@@ -285,7 +461,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                     )}
                   </div>
                 )}
-
               {/* Developers & Publishers */}
               {(details?.developers || details?.publishers) && (
                 <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
@@ -311,7 +486,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   )}
                 </div>
               )}
-
               {/* Categories */}
               {details?.categories && details.categories.length > 0 && (
                 <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
@@ -330,7 +504,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   </div>
                 </div>
               )}
-
               {/* Genres */}
               {details?.genres && details.genres.length > 0 && (
                 <div className="bg-slate-900 p-4 rounded-lg border border-emerald-700/40">
@@ -350,9 +523,7 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                 </div>
               )}
             </div>
-
-            {/* Right Content - Description & Screenshots */}
-            <div className="lg:col-span-2 space-y-8">
+            <div className="col-span-2 space-y-8">
               {/* Description */}
               <div>
                 <h2 className="text-2xl font-bold mb-4 text-emerald-300">
@@ -376,7 +547,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                   )}
                 </div>
               </div>
-
               {/* Screenshots */}
               {details?.screenshots && details.screenshots.length > 0 && (
                 <div>
@@ -405,7 +575,6 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </div>
-
       {/* Screenshot Modal */}
       {selectedScreenshot !== null && details?.screenshots && (
         <div
@@ -418,7 +587,7 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={details.screenshots[selectedScreenshot]?.path_full}
+              src={details.screenshots[selectedScreenshot ?? 0]?.path_full}
               alt={`Screenshot ${selectedScreenshot !== null ? selectedScreenshot + 1 : ""}`}
               className="w-full rounded-lg"
             />
@@ -486,21 +655,25 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
               )}
             </button>
             <div className="absolute bottom-4 left-0 right-0 text-center text-white">
-              {selectedScreenshot !== null ? selectedScreenshot + 1 : ""} /{" "}
-              {details.screenshots.length}
+              {(selectedScreenshot ?? 0) + 1} / {details.screenshots.length}
             </div>
             {selectedScreenshot !== null && selectedScreenshot > 0 && (
               <button
-                onClick={() => setSelectedScreenshot(selectedScreenshot - 1)}
+                onClick={() =>
+                  setSelectedScreenshot((selectedScreenshot ?? 1) - 1)
+                }
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition"
               >
                 ←
               </button>
             )}
             {selectedScreenshot !== null &&
+              details.screenshots &&
               selectedScreenshot < details.screenshots.length - 1 && (
                 <button
-                  onClick={() => setSelectedScreenshot(selectedScreenshot + 1)}
+                  onClick={() =>
+                    setSelectedScreenshot((selectedScreenshot ?? -1) + 1)
+                  }
                   className="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-700/40 hover:bg-emerald-600/60 rounded-full p-2 transition"
                 >
                   →
