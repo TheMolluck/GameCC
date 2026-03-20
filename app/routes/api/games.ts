@@ -21,7 +21,10 @@ export const action: ActionFunction = async ({ request }) => {
         gamesToStore = await api.getUserOwnedGames(steamid);
       } catch (err) {
         return new Response(
-          JSON.stringify({ error: "Failed to fetch games from Steam" }),
+          JSON.stringify({
+            error: "Failed to fetch games from Steam",
+            details: err,
+          }),
           {
             status: 500,
             headers: { "Content-Type": "application/json" },
@@ -43,10 +46,13 @@ export const action: ActionFunction = async ({ request }) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Failed to store games" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Failed to store games", details: err }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 };
 

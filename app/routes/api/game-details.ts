@@ -1,29 +1,10 @@
-import type { LoaderFunction } from "react-router";
+import type { SteamGame } from "../../.server/types";
 
-import { getGameDetailsWithCache } from "../../.server/db/gameDetails";
-import { getGamesByUserId } from "../../.server/db/db";
-import type { SteamGame, SteamGameDetails } from "../../.server/types";
+export const loader = async ({ request }: { request: Request }) => {
+  const { getGameDetailsWithCache } =
+    await import("../../.server/db/gameDetails");
+  const { getGamesByUserId } = await import("../../.server/db/db");
 
-export async function getGameDetailsAndUserGame(
-  appid: number,
-  userid?: string,
-): Promise<{ details: SteamGameDetails | null; game: SteamGame | null }> {
-  const details = await getGameDetailsWithCache(appid);
-  let game: SteamGame | null = null;
-  if (userid) {
-    try {
-      const games = await getGamesByUserId(userid);
-      if (Array.isArray(games)) {
-        game = games.find((g: SteamGame) => g.appid === appid) || null;
-      }
-    } catch {
-      // ignore error
-    }
-  }
-  return { details, game };
-}
-
-export const loader: LoaderFunction = async ({ request }) => {
   const url = new URL(request.url);
   const appid = url.searchParams.get("appid");
   const userid = url.searchParams.get("userid");
@@ -33,10 +14,19 @@ export const loader: LoaderFunction = async ({ request }) => {
       headers: { "Content-Type": "application/json" },
     });
   }
-  const { details, game } = await getGameDetailsAndUserGame(
-    Number(appid),
-    userid || undefined,
-  );
+
+  const details = await getGameDetailsWithCache(Number(appid));
+  let game = null;
+  if (userid) {
+    try {
+      const games = await getGamesByUserId(userid);
+      if (Array.isArray(games)) {
+        game = games.find((g: SteamGame) => g.appid === Number(appid)) || null;
+      }
+    } catch {
+      // ignore error
+    }
+  }
   if (!details) {
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,

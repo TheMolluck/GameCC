@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useRef } from "react";
 import { redirect, Link } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/game";
 import type { SteamGame } from "~/.server/types";
-import { getGameDetailsAndUserGame } from "./api/game-details";
+
 import { userContext } from "~/context";
 import { getUserFromSession } from "~/.server/auth";
 import type { SteamGameDetails } from "~/.server/types";
@@ -47,7 +47,22 @@ export async function loader({ context, params }: Route.LoaderArgs) {
     throw redirect("/library");
   }
 
-  const { details, game } = await getGameDetailsAndUserGame(appid, userId);
+  const { getGameDetailsWithCache } = await import("~/.server/db/gameDetails");
+  const { getGamesByUserId } = await import("~/.server/db/db");
+
+  const details = await getGameDetailsWithCache(appid);
+  let game = null;
+  if (userId) {
+    try {
+      const games = await getGamesByUserId(userId);
+      if (Array.isArray(games)) {
+        game = games.find((g: SteamGame) => g.appid === appid) || null;
+      }
+    } catch {
+      // ignore error
+    }
+  }
+
   return { game, details, user: userId, appid };
 }
 
@@ -71,6 +86,30 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
   const [selectedScreenshot, setSelectedScreenshot] = React.useState<
     number | null
   >(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  const handleFullscreen = () => {
+    if (modalRef.current) {
+      if (!document.fullscreenElement) {
+        modalRef.current.requestFullscreen?.();
+        setIsFullscreen(true);
+      } else {
+        document.exitFullscreen?.();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
 
   if (!details && game) {
     return (
@@ -374,7 +413,8 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
           onClick={() => setSelectedScreenshot(null)}
         >
           <div
-            className="relative max-w-4xl w-full"
+            ref={modalRef}
+            className={`relative max-w-4xl w-full${isFullscreen ? " fullscreen-modal" : ""}`}
             onClick={(e) => e.stopPropagation()}
           >
             <img
@@ -382,11 +422,68 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
               alt={`Screenshot ${selectedScreenshot !== null ? selectedScreenshot + 1 : ""}`}
               className="w-full rounded-lg"
             />
+            {/* Close button */}
             <button
               onClick={() => setSelectedScreenshot(null)}
               className="absolute -top-10 right-0 text-white text-2xl font-bold hover:text-emerald-300 transition"
+              title="Close"
             >
               ✕
+            </button>
+            {/* Fullscreen button */}
+            <button
+              onClick={handleFullscreen}
+              className="absolute bottom-4 right-4 bg-black/60 hover:bg-black/80 rounded-full p-2 text-white text-2xl font-bold transition z-10"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              type="button"
+              style={{ backdropFilter: "blur(2px)" }}
+            >
+              {isFullscreen ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-7 h-7"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 19.5V17a2 2 0 0 1 2-2h2.5"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 4.5V7a2 2 0 0 1-2 2H4.5"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 9H17a2 2 0 0 1-2-2V4.5"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 15H7a2 2 0 0 1 2 2v2.5"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-7 h-7"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3.75 9V5.25A1.5 1.5 0 0 1 5.25 3.75H9m6 0h3.75a1.5 1.5 0 0 1 1.5 1.5V9m0 6v3.75a1.5 1.5 0 0 1-1.5 1.5H15m-6 0H5.25a1.5 1.5 0 0 1-1.5-1.5V15"
+                  />
+                </svg>
+              )}
             </button>
             <div className="absolute bottom-4 left-0 right-0 text-center text-white">
               {selectedScreenshot !== null ? selectedScreenshot + 1 : ""} /{" "}
