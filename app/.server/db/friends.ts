@@ -111,17 +111,21 @@ export async function acceptFriendRequest(requestId: string) {
     { $set: { status: "accepted", updatedAt: new Date() } },
   );
   const friends = client.db("gamecc").collection<Friend>("friends");
-  const existingFriend = await friends.findOne({
-    $or: [
-      { user1: req.from, user2: req.to },
-      { user1: req.to, user2: req.from },
-    ],
-  });
+
+  const [user1, user2] =
+    req.from < req.to ? [req.from, req.to] : [req.to, req.from];
+  const existingFriend = await friends.findOne({ user1, user2 });
   if (!existingFriend) {
+    const now = new Date();
     await friends.insertOne({
-      user1: req.from,
-      user2: req.to,
-      since: new Date(),
+      user1,
+      user2,
+      since: now,
+      nickname1: "",
+      nickname2: "",
+      blockedBy: undefined,
+      ignoreUntil1: undefined,
+      ignoreUntil2: undefined,
     });
   }
 }
@@ -195,17 +199,17 @@ export async function setFriendNickname(
 ) {
   const client = await ensureConnected();
   const collection = client.db("gamecc").collection<Friend>("friends");
-  const field = (await collection.findOne({ user1: user, user2: other }))
-    ? "nickname1"
-    : "nickname2";
-  await collection.updateOne(
-    {
-      $or: [
-        { user1: user, user2: other },
-        { user1: other, user2: user },
-      ],
-    },
+  const [user1, user2] = user < other ? [user, other] : [other, user];
+  const field = user === user1 ? "nickname1" : "nickname2";
+  const result = await collection.updateOne(
+    { user1, user2 },
     { $set: { [field]: nickname } },
+  );
+  console.log(
+    `[setFriendNickname] user: ${user}, other: ${other}, user1: ${user1}, user2: ${user2}, field: ${field}, nickname: ${nickname}`,
+  );
+  console.log(
+    `[setFriendNickname] matchedCount: ${result.matchedCount}, modifiedCount: ${result.modifiedCount}`,
   );
 }
 
@@ -226,8 +230,8 @@ export async function getFriendRequests(username: string) {
     .collection<FriendRequest>("friend_requests");
   return collection
     .find({
-      $or: [{ from: username }, { to: username }],
-      status: { $ne: "cancelled" },
+      to: username,
+      status: "pending",
     })
     .toArray();
 }

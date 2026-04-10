@@ -1,8 +1,7 @@
 import { PassThrough } from "node:stream";
 import { setupFriendCollections } from "./.server/db/setupFriendsCollections";
-// import { closeDatabase } from "./.server/db/db";
 
-setupFriendCollections().catch((err) => {
+setupFriendCollections().catch((err: unknown) => {
   console.error("Failed to setup friends collections:", err);
 });
 

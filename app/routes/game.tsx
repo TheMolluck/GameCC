@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { redirect, Link } from "react-router";
+import { redirect, useLocation, useNavigate } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/game";
 import type { SteamGame } from "~/.server/types";
@@ -77,12 +77,22 @@ function formatTime(hours: number): string {
 }
 
 export default function GamePage({ loaderData }: Route.ComponentProps) {
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const { game, details, appid } = loaderData as {
     game?: SteamGame | null;
     details?: SteamGameDetails | null;
     user?: string;
     appid: number;
   };
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const params = new URLSearchParams(location.search);
+  const fromCompare = params.get("from") === "compare";
+  const compareFriend = params.get("friend");
+  const compareScroll = params.get("scroll");
   const [selectedScreenshot, setSelectedScreenshot] = React.useState<
     number | null
   >(null);
@@ -124,16 +134,37 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
             ? formatTime(game.playtime_forever / 60)
             : "-"}
         </div>
-        <Link
-          to="/library"
-          className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
-        >
-          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            <span>←</span>
-            <span className="sm:inline hidden">Back to library</span>
-            <span className="inline sm:hidden text-xs">Library</span>
-          </span>
-        </Link>
+        {fromCompare && compareFriend ? (
+          <button
+            className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+            onClick={() => {
+              navigate(
+                `/compare?friend=${encodeURIComponent(compareFriend)}${compareScroll ? `#${compareScroll}` : ""}`,
+              );
+            }}
+          >
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span>←</span>
+              <span className="sm:inline hidden">Back to compare</span>
+              <span className="inline sm:hidden text-xs">Compare</span>
+            </span>
+          </button>
+        ) : (
+          <button
+            className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+            onClick={() => {
+              const params = new URLSearchParams(location.search);
+              const scroll = params.get("scroll");
+              navigate(`/library${scroll ? `?scroll=${scroll}` : ""}`);
+            }}
+          >
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span>←</span>
+              <span className="sm:inline hidden">Back to library</span>
+              <span className="inline sm:hidden text-xs">Library</span>
+            </span>
+          </button>
+        )}
       </div>
     );
   }
@@ -144,13 +175,31 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
         <p className="mb-6">
           We couldn't find details for this game (AppID: {appid}).
         </p>
-        <Link
-          to="/library"
-          className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
-        >
-          ← <span className="sm:inline hidden">Back to library</span>
-          <span className="inline sm:hidden">Library</span>
-        </Link>
+        {fromCompare && compareFriend ? (
+          <button
+            className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+            onClick={() => {
+              navigate(
+                `/compare?friend=${encodeURIComponent(compareFriend)}${compareScroll ? `#${compareScroll}` : ""}`,
+              );
+            }}
+          >
+            ← <span className="sm:inline hidden">Back to compare</span>
+            <span className="inline sm:hidden">Compare</span>
+          </button>
+        ) : (
+          <button
+            className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+            onClick={() => {
+              const params = new URLSearchParams(location.search);
+              const scroll = params.get("scroll");
+              navigate(`/library${scroll ? `?scroll=${scroll}` : ""}`);
+            }}
+          >
+            ← <span className="sm:inline hidden">Back to library</span>
+            <span className="inline sm:hidden">Library</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -197,13 +246,31 @@ export default function GamePage({ loaderData }: Route.ComponentProps) {
                 )}
               </div>
             </div>
-            <Link
-              to="/library"
-              className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
-            >
-              ← <span className="sm:inline hidden">Back to library</span>
-              <span className="inline sm:hidden">Library</span>
-            </Link>
+            {fromCompare && compareFriend ? (
+              <button
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+                onClick={() => {
+                  navigate(
+                    `/compare?friend=${encodeURIComponent(compareFriend)}${compareScroll ? `#${compareScroll}` : ""}`,
+                  );
+                }}
+              >
+                ← <span className="sm:inline hidden">Back to compare</span>
+                <span className="inline sm:hidden">Compare</span>
+              </button>
+            ) : (
+              <button
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+                onClick={() => {
+                  const params = new URLSearchParams(location.search);
+                  const scroll = params.get("scroll");
+                  navigate(`/library${scroll ? `?scroll=${scroll}` : ""}`);
+                }}
+              >
+                ← <span className="sm:inline hidden">Back to library</span>
+                <span className="inline sm:hidden">Library</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
