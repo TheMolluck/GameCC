@@ -1,5 +1,161 @@
 import React from "react";
+import {
+  MdPersonRemove,
+  MdBlock,
+  MdVisibilityOff,
+  MdEdit,
+  MdCompareArrows,
+  MdChat,
+} from "react-icons/md";
 import { useLoaderData, useFetcher } from "react-router";
+import type { LoaderFunction, ActionFunction } from "react-router";
+import {
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  removeFriend,
+  blockFriend,
+  ignoreFriend,
+  setFriendNickname,
+  getFriends,
+  getFriendRequests,
+} from "../.server/db/friends";
+import { getUsernameBySteamId } from "../.server/db/getUsernameBySteamId";
+import { userContext } from "~/context";
+import { getUserFromSession } from "../.server/auth";
+import { getSession, commitSession } from "../.server/sessions";
+export const loader: LoaderFunction = async ({ request, context }) => {
+  let user = context.get(userContext);
+  if (!user) {
+    user = (await getUserFromSession(request)) ?? null;
+  }
+  if (!user) {
+    throw new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  // If user is a steamid, resolve to GameCC username
+  let username = user;
+  if (/^\d+$/.test(user)) {
+    const resolved = await getUsernameBySteamId(user);
+    if (resolved) username = resolved;
+  }
+  context.set(userContext, username);
+  const [friends, requests] = await Promise.all([
+    getFriends(username),
+    getFriendRequests(username),
+  ]);
+  return { friends, requests, user: username };
+};
+
+export const action: ActionFunction = async ({ request, context }) => {
+  let user = context.get(userContext);
+  const session = await getSession(request.headers.get("cookie"));
+  if (!user) {
+    user = (await getUserFromSession(request)) ?? null;
+    if (user) {
+      session.set("userId", user);
+    }
+  }
+  if (!user) {
+    throw new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  // Resolve SteamID to GameCC username if needed
+  let username = user;
+  if (/^\d+$/.test(user)) {
+    const resolved = await getUsernameBySteamId(user);
+    if (resolved) username = resolved;
+  }
+  context.set(userContext, username);
+  const formData = await request.formData();
+  const actionType = formData.get("_action");
+  try {
+    let response;
+    switch (actionType) {
+      case "send-friend-request": {
+        const to = formData.get("to")?.toString();
+        if (!to) throw new Error("Missing recipient");
+        await sendFriendRequest(username, to);
+        response = { success: true };
+        break;
+      }
+      case "accept-friend-request": {
+        const requestId = formData.get("requestId")?.toString();
+        if (!requestId) throw new Error("Missing requestId");
+        await acceptFriendRequest(requestId);
+        response = { success: true };
+        break;
+      }
+      case "decline-friend-request": {
+        const requestId = formData.get("requestId")?.toString();
+        if (!requestId) throw new Error("Missing requestId");
+        await declineFriendRequest(requestId);
+        response = { success: true };
+        break;
+      }
+      case "remove-friend": {
+        const other = formData.get("other")?.toString();
+        if (!other) throw new Error("Missing friend");
+        await removeFriend(username, other);
+        response = { success: true };
+        break;
+      }
+      case "block-friend": {
+        const other = formData.get("other")?.toString();
+        if (!other) throw new Error("Missing friend");
+        await blockFriend(username, other);
+        response = { success: true };
+        break;
+      }
+      case "ignore-friend": {
+        const other = formData.get("other")?.toString();
+        const durationMs = Number(formData.get("durationMs"));
+        if (!other || !durationMs) throw new Error("Missing fields");
+        await ignoreFriend(username, other, durationMs);
+        response = { success: true };
+        break;
+      }
+      case "set-friend-nickname": {
+        const other = formData.get("other")?.toString();
+        const nickname = formData.get("nickname")?.toString();
+        if (!other || !nickname) throw new Error("Missing fields");
+        await setFriendNickname(username, other, nickname);
+        response = { success: true };
+        break;
+      }
+      case "cancel-friend-request": {
+        const requestId = formData.get("requestId")?.toString();
+        if (!requestId) throw new Error("Missing requestId");
+        await (
+          await import("../.server/db/friends")
+        ).cancelFriendRequest(requestId, user);
+        response = { success: true };
+        break;
+      }
+      default:
+        throw new Error("Unknown action");
+    }
+    return new Response(JSON.stringify(response), {
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": await commitSession(session),
+      },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 400,
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": await commitSession(session),
+      },
+    });
+  }
+};
 
 interface Friend {
   user1: string;
@@ -35,7 +191,7 @@ export default function FriendsPage() {
     ? loaderData.friends
     : [];
   const requests: FriendRequest[] = Array.isArray(loaderData?.requests)
-    ? loaderData.requests.filter((r) => r.status === "pending")
+    ? loaderData.requests
     : [];
   const myId: string = loaderData?.user || "";
   const fetcher = useFetcher();
@@ -114,77 +270,141 @@ export default function FriendsPage() {
           {friends.length === 0 && (
             <li className="p-4 text-slate-400">No friends yet.</li>
           )}
-          {friends.map((friend, i) => (
-            <li
-              key={i}
-              className="flex flex-col md:flex-row md:items-center justify-between p-4 gap-2"
-              tabIndex={0}
-              role="listitem"
-              aria-label={`Friend: ${getOtherUser(friend, myId)}`}
-            >
-              <span className="font-semibold text-slate-100">
-                {getOtherUser(friend, myId)}
-              </span>
-              <div className="flex flex-wrap gap-2 mt-2 md:mt-0">
-                <fetcher.Form method="post" aria-label="Remove friend form">
-                  <input
-                    type="hidden"
-                    name="other"
-                    value={getOtherUser(friend, myId)}
-                  />
-                  <button
-                    name="_action"
-                    value="remove-friend"
-                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                  >
-                    Remove
-                  </button>
-                </fetcher.Form>
-                <fetcher.Form method="post" aria-label="Block friend form">
-                  <input
-                    type="hidden"
-                    name="other"
-                    value={getOtherUser(friend, myId)}
-                  />
-                  <button
-                    name="_action"
-                    value="block-friend"
-                    className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                  >
-                    Block
-                  </button>
-                </fetcher.Form>
-                <button
-                  onClick={() => setFriendToIgnore(getOtherUser(friend, myId))}
-                  className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          {(() => {
+            const [openMenuIndex, setOpenMenuIndex] = React.useState<
+              number | null
+            >(null);
+            return friends.map((friend, i) => {
+              const other = getOtherUser(friend, myId);
+              let nickname = "";
+              if (myId < other) {
+                nickname = friend.nickname1 ?? "";
+              } else {
+                nickname = friend.nickname2 ?? "";
+              }
+              return (
+                <li
+                  key={i}
+                  className="flex flex-row items-center justify-between p-4 gap-4 group hover:bg-emerald-950/40 transition rounded-lg"
+                  tabIndex={0}
+                  role="listitem"
+                  aria-label={`Friend: ${other}`}
                 >
-                  Ignore
-                </button>
-                <button
-                  onClick={() =>
-                    setFriendToNickname(getOtherUser(friend, myId))
-                  }
-                  className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                >
-                  Nickname
-                </button>
-                <button
-                  className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-emerald-700"
-                  disabled
-                  aria-disabled="true"
-                >
-                  Compare
-                </button>
-                <button
-                  className="px-3 py-1 bg-slate-700 text-emerald-300 rounded hover:bg-emerald-700"
-                  disabled
-                  aria-disabled="true"
-                >
-                  Message
-                </button>
-              </div>
-            </li>
-          ))}
+                  <span className="font-semibold text-slate-100 text-lg flex items-center gap-2">
+                    {other}
+                    {nickname && (
+                      <span className="text-emerald-400 text-base">
+                        ({nickname})
+                      </span>
+                    )}
+                  </span>
+                  <div className="relative flex items-center">
+                    <button
+                      className="p-2 rounded-full hover:bg-emerald-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="More actions"
+                      onClick={() =>
+                        setOpenMenuIndex(openMenuIndex === i ? null : i)
+                      }
+                      tabIndex={0}
+                      type="button"
+                    >
+                      <svg
+                        width="22"
+                        height="22"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle cx="5" cy="12" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="19" cy="12" r="2" />
+                      </svg>
+                    </button>
+                    {openMenuIndex === i && (
+                      <div className="absolute right-0 top-10 z-40 min-w-45 bg-slate-900 border border-emerald-700/40 rounded-xl shadow-lg flex flex-col py-2 animate-fade-in">
+                        <fetcher.Form
+                          method="post"
+                          aria-label="Remove friend form"
+                        >
+                          <input type="hidden" name="other" value={other} />
+                          <button
+                            name="_action"
+                            value="remove-friend"
+                            className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-800/30 text-red-400 w-full text-left"
+                            tabIndex={0}
+                            type="submit"
+                            title="Remove friend"
+                          >
+                            <MdPersonRemove size={18} /> Remove
+                          </button>
+                        </fetcher.Form>
+                        <fetcher.Form
+                          method="post"
+                          aria-label="Block friend form"
+                        >
+                          <input type="hidden" name="other" value={other} />
+                          <button
+                            name="_action"
+                            value="block-friend"
+                            className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-800/30 text-emerald-300 w-full text-left"
+                            tabIndex={0}
+                            type="submit"
+                            title="Block friend"
+                          >
+                            <MdBlock size={18} /> Block
+                          </button>
+                        </fetcher.Form>
+                        <button
+                          onClick={() => {
+                            setFriendToIgnore(other);
+                            setOpenMenuIndex(null);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-800/30 text-emerald-300 w-full text-left"
+                          tabIndex={0}
+                          type="button"
+                          title="Ignore friend"
+                        >
+                          <MdVisibilityOff size={18} /> Ignore
+                        </button>
+                        <button
+                          onClick={() => {
+                            setFriendToNickname(other);
+                            setOpenMenuIndex(null);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-800/30 text-emerald-300 w-full text-left"
+                          tabIndex={0}
+                          type="button"
+                          title="Set nickname"
+                        >
+                          <MdEdit size={18} /> Nickname
+                        </button>
+                        <a
+                          href={`/compare?friend=${encodeURIComponent(other)}`}
+                          className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-800/30 text-emerald-300 w-full text-left"
+                          tabIndex={0}
+                          title={`Compare games with ${other}`}
+                          role="menuitem"
+                        >
+                          <MdCompareArrows size={18} /> Compare
+                        </a>
+                        <button
+                          className="flex items-center gap-2 px-4 py-2 text-gray-400 w-full text-left cursor-not-allowed"
+                          disabled
+                          aria-disabled="true"
+                          tabIndex={-1}
+                          title="Messaging coming soon"
+                          type="button"
+                        >
+                          <MdChat size={18} /> Message
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            });
+          })()}
         </ul>
       </section>
       <section className="mb-10" aria-labelledby="friend-requests-heading">
@@ -377,13 +597,18 @@ export default function FriendsPage() {
             <h3 className="text-lg font-semibold text-emerald-300">
               Ignore Friend
             </h3>
-            <input
-              type="number"
-              value={ignoreDuration}
-              onChange={(e) => setIgnoreDuration(Number(e.target.value))}
-              className="px-3 py-1 rounded bg-slate-800 text-slate-100"
-              placeholder="Duration (minutes)"
-            />
+            <label className="flex flex-col gap-1 text-slate-200">
+              <span>Ignore duration (in minutes):</span>
+              <input
+                type="number"
+                min={1}
+                value={ignoreDuration}
+                onChange={(e) => setIgnoreDuration(Number(e.target.value))}
+                className="px-3 py-1 rounded bg-slate-800 text-slate-100"
+                placeholder="e.g. 10"
+                required
+              />
+            </label>
             <fetcher.Form
               method="post"
               onSubmit={() => setFriendToIgnore(null)}

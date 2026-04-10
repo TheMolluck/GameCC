@@ -175,7 +175,7 @@ function GameList({
     </div>
   );
 }
-import { redirect, NavLink } from "react-router";
+import { redirect } from "react-router";
 import type { MiddlewareFunction } from "react-router";
 import type { Route } from "./+types/library";
 import type { SteamGame, SteamGameDetails } from "~/.server/types";
@@ -233,6 +233,11 @@ function GameCard({
   loadingDetails: boolean;
   loadingGrids: boolean;
 }) {
+  const handleCardClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const scroll = window.scrollY;
+    window.location.href = `/game/${game.appid}?from=library&scroll=${scroll}`;
+  };
   const formatTime = (hours: number): string => {
     if (hours < 1) {
       return `${Math.round(hours * 60)}m`;
@@ -252,10 +257,11 @@ function GameCard({
       })
     : "Never";
   return (
-    <NavLink
-      to={`/game/${game.appid}`}
+    <a
+      href={`/game/${game.appid}?from=library&scroll=${window.scrollY}`}
       className="block group"
       data-appid={game.appid}
+      onClick={handleCardClick}
     >
       <div className="relative h-80 rounded-xl overflow-hidden bg-linear-to-b from-slate-800 to-slate-900 border border-emerald-700/40 transition-all duration-300 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-400/20 cursor-pointer">
         {/* Grid image or loading */}
@@ -306,7 +312,7 @@ function GameCard({
           {formatTime(game.playtime_forever / 60)}
         </div>
       </div>
-    </NavLink>
+    </a>
   );
 }
 
@@ -319,7 +325,6 @@ const PAGE_SIZE = 24;
 
 export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   const { user } = loaderData;
-
   // State for games and loading
   const [games, setGames] = useState<SteamGame[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
@@ -338,6 +343,20 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
 
   const detailsCache = useRef<Record<string, SteamGameDetails | null>>({});
   const gridsCache = useRef<Record<string, SGDBImage[]>>({});
+
+  // State for filter, sort, infinite scroll, and layout
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showGenreDropdown, setShowGenreDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [sortType, setSortType] = useState<SortType>("name-asc");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [isLoading, setIsLoading] = useState(false);
+  const [layout, setLayout] = useState<"grid" | "list" | undefined>(undefined);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [librarySource, setLibrarySource] = useState("All");
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
 
   // Fetch games after mount
   useEffect(() => {
@@ -378,20 +397,6 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
       });
   }, [user]);
 
-  // State for filter, sort, infinite scroll, and layout
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [showGenreDropdown, setShowGenreDropdown] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [sortType, setSortType] = useState<SortType>("name-asc");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [isLoading, setIsLoading] = useState(false);
-  const [layout, setLayout] = useState<"grid" | "list" | undefined>(undefined);
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [librarySource, setLibrarySource] = useState("All");
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
-
   // On mount, read layout from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -412,7 +417,8 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
   }, [layout]);
   // Handle row click for list layout
   const handleRowClick = (appid: number) => {
-    window.location.href = `/game/${appid}`;
+    const scroll = window.scrollY;
+    window.location.href = `/game/${appid}?from=library&scroll=${scroll}`;
   };
 
   const genreDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -474,6 +480,97 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
     searchTerm,
     librarySource,
   ]);
+  // Restore scroll position robustly after infinite scroll loads
+  useEffect(() => {
+    let attempts = 0;
+    let cancelled = false;
+    function tryRestore() {
+      if (cancelled) return;
+      const saved = sessionStorage.getItem("libraryScrollY");
+      const scrollY = saved ? Number(saved) : 0;
+      if (!isNaN(scrollY) && scrollY > 0) {
+        window.scrollTo(0, scrollY);
+        // If not enough content, try again
+        if (
+          Math.abs(window.scrollY - scrollY) > 2 &&
+          document.body.scrollHeight - window.innerHeight > scrollY &&
+          attempts < 20
+        ) {
+          attempts++;
+          setTimeout(tryRestore, 100);
+        } else {
+          sessionStorage.removeItem("libraryScrollY");
+        }
+      }
+    }
+    if (
+      typeof window !== "undefined" &&
+      !gamesLoading &&
+      layout &&
+      filteredGames.length > 0
+    ) {
+      tryRestore();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [gamesLoading, layout, filteredGames.length, visibleCount]);
+
+  const [pendingScrollRestore, setPendingScrollRestore] = useState(true);
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      !gamesLoading &&
+      layout &&
+      filteredGames.length > 0 &&
+      pendingScrollRestore
+    ) {
+      const saved = sessionStorage.getItem("libraryScrollY");
+      const scrollY = saved ? Number(saved) : 0;
+      if (!isNaN(scrollY) && scrollY > 0) {
+        // Try to scroll, and check if it worked
+        window.scrollTo(0, scrollY);
+        // If not enough content, keep trying after each load
+        setTimeout(() => {
+          if (
+            Math.abs(window.scrollY - scrollY) > 2 &&
+            document.body.scrollHeight - window.innerHeight > scrollY
+          ) {
+            // Not enough content yet, try again on next render
+            setPendingScrollRestore(true);
+          } else {
+            // Success or can't scroll further
+            setPendingScrollRestore(false);
+            sessionStorage.removeItem("libraryScrollY");
+          }
+        }, 100);
+      } else {
+        setPendingScrollRestore(false);
+      }
+    }
+  }, [
+    gamesLoading,
+    layout,
+    filteredGames.length,
+    visibleCount,
+    pendingScrollRestore,
+  ]);
+
+  // Restore scroll position if returning from game page, but only after games and layout are loaded
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      !gamesLoading &&
+      layout &&
+      filteredGames.length > 0
+    ) {
+      const params = new URLSearchParams(window.location.search);
+      const scrollY = Number(params.get("scroll"));
+      if (!isNaN(scrollY) && scrollY > 0) {
+        setTimeout(() => window.scrollTo(0, scrollY), 0);
+      }
+    }
+  }, [gamesLoading, layout, filteredGames.length]);
 
   // Collect all genres and categories from gameDetails
   const allGenres = useMemo(() => {
@@ -611,6 +708,9 @@ export default function GamesLibrary({ loaderData }: Route.ComponentProps) {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6 text-emerald-400">
         Your Games Library
+        <span className="ml-2 text-emerald-300 text-xl align-middle">
+          ({filteredGames.length})
+        </span>
       </h1>
       <div>
         <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-emerald-700/30 shadow-lg rounded-b-xl mb-8">

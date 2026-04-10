@@ -64,13 +64,11 @@ export default function App({ loaderData }: Route.ComponentProps) {
   const navigation = useNavigation();
   return (
     <>
+      <Navbar user={userDisplayName} />
       {navigation.state === "loading" || navigation.state === "submitting" ? (
         <Spinner />
       ) : (
-        <>
-          <Navbar user={userDisplayName} />
-          <Outlet />
-        </>
+        <Outlet />
       )}
     </>
   );

@@ -13,5 +13,3 @@ export async function setupFriendCollections() {
   await db.collection("friend_requests").createIndex({ to: 1 });
   await db.collection("friend_requests").createIndex({ status: 1 });
 }
-
-// Optionally, call setupFriendCollections() on server start or migration

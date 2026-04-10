@@ -11,7 +11,7 @@ export default [
   route("auth/sign-in", "routes/sign-in._index.ts"),
   route("auth/steam/return", "routes/sign-in.steam.return._index.ts"),
   route("auth/sign-out", "routes/sign-out._index.ts"),
-  route("friends", "routes/friends._index.ts"),
+  route("friends", "routes/friends.tsx"),
   route("api/game-details", "routes/api/game-details.ts"),
   route("api/games", "routes/api/games.ts"),
   route("api/grids", "routes/api/grids.ts"),

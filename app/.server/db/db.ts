@@ -1,3 +1,24 @@
+// Get games by username (resolve to steamid first)
+export async function getGamesByUsername(username: string) {
+  const client = await ensureConnected();
+  // Try to find user by username
+  const user = await client
+    .db("gamecc")
+    .collection("users")
+    .findOne({ username });
+  if (user && user.steamid) {
+    return getGamesByUserId(user.steamid);
+  }
+  // If not found, try to find by personaname (Steam display name)
+  const personaUser = await client
+    .db("gamecc")
+    .collection("users")
+    .findOne({ personaname: username });
+  if (personaUser && personaUser.steamid) {
+    return getGamesByUserId(personaUser.steamid);
+  }
+  throw new Error("User not found with the given username.");
+}
 import { MongoClient } from "mongodb";
 import type { SteamGames, User } from "../types";
 import type { SGDBImage } from "steamgriddb";
